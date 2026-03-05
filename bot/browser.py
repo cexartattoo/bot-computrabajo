@@ -2,6 +2,7 @@ import asyncio
 import random
 import math
 import time
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -493,38 +494,20 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"}.get(confianza, "[?]")
             print(f"    - {conf_icon} '{question_text[:60]}...' [{model_used}] ({tipo})")
 
-        # ── In dry-run-llm, stop here — don't upload CV or submit ──
+        # ── In dry-run-llm, stop here -- don't upload CV or submit ──
         if mode == "dry-run-llm":
             print(f"  [DRY-RUN-LLM] Respuestas recopiladas sin enviar formulario.")
+            # Still emit review data so the dashboard can show it
+            await _emit_review_request(job, page, answers)
             return True, answers
 
-        # ── Semi-auto: send review request via file protocol ──
+        # ── Emit review request for ALL modes ──
+        review_data = await _emit_review_request(job, page, answers)
+
+        # ── Semi-auto: wait for user review ──
         if mode == "semi-auto" and answers:
             import json as _json
 
-            # Extract job description from the page
-            desc_text = ""
-            try:
-                desc_el = page.locator(".job_info_content, .cm-info, .box_detail, .job-description, article")
-                if await desc_el.count() > 0:
-                    desc_text = (await desc_el.first.inner_text()).strip()[:3000]
-            except Exception:
-                pass
-
-            review_data = {
-                "type": "review_request",
-                "job": {
-                    "title": job.get("title", ""),
-                    "company": job.get("company", ""),
-                    "location": job.get("location", ""),
-                    "salary": job.get("salary", ""),
-                    "url": job.get("url", ""),
-                    "description": desc_text,
-                },
-                "answers": answers,
-            }
-
-            # Write request file and print JSON marker for bot_runner to intercept
             ipc_dir = Path(__file__).parent.parent / ".semi_auto"
             ipc_dir.mkdir(exist_ok=True)
             req_file = ipc_dir / "request.json"
@@ -535,8 +518,6 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                 res_file.unlink()
 
             req_file.write_text(_json.dumps(review_data, ensure_ascii=False, indent=2), encoding="utf-8")
-            # Print the JSON marker so bot_runner broadcasts it to WebSocket clients
-            print(f"[REVIEW_REQUEST]{_json.dumps(review_data, ensure_ascii=False)}")
             print("  [SEMI-AUTO] Esperando revision del usuario en el dashboard...")
 
             # Poll for response (check every 2 seconds, timeout 10 minutes)
@@ -546,6 +527,8 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             while waited < max_wait:
                 await asyncio.sleep(2)
                 waited += 2
+                if waited % 30 == 0:
+                    print(f"  [SEMI-AUTO] Esperando respuesta... ({waited}s)")
                 if res_file.exists():
                     try:
                         user_response = _json.loads(res_file.read_text(encoding="utf-8"))
@@ -573,56 +556,48 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                         answers[q_text]["answer"] = new_answer
                         answers[q_text]["tipo"] = "editada_usuario"
                         answers[q_text]["confianza"] = "alta"
-
-            # Fill form fields with (possibly edited) answers
-            for i in range(q_count):
-                inp = question_inputs.nth(i)
-                q_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
-                if q_text in answers:
-                    try:
-                        await inp.fill(str(answers[q_text].get("answer", "")))
-                        await human_delay(0.3, 0.8)
-                    except Exception as e:
-                        print(f"    [!] Error llenando input: {e}")
+                        print(f"    [EDIT] '{q_text[:50]}...' editada por usuario")
 
             print(f"  [SEMI-AUTO] Respuestas aplicadas ({len(edited)} editadas).")
 
-            # Use selected CV or default
-            cv_to_use = CV_PATH
+            # Override CV if user selected one
             if selected_cv:
                 from bot.config import get_cv_path
                 alt_cv = get_cv_path(selected_cv)
                 if alt_cv and alt_cv.exists():
-                    cv_to_use = alt_cv
-
-            # Upload CV
-            if cv_to_use.exists():
-                file_input = page.locator("input[type='file']")
-                if await file_input.count() > 0:
-                    await file_input.first.set_input_files(str(cv_to_use))
-                    await human_delay(1, 2)
-                    print(f"  [Browser] CV adjuntado: {cv_to_use.name}")
+                    active_cv_override = alt_cv
+                else:
+                    active_cv_override = None
+            else:
+                active_cv_override = None
         else:
-            # Non-semi-auto modes: fill normally
-            for i in range(q_count):
-                inp = question_inputs.nth(i)
-                q_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
-                if q_text in answers and mode != "dry-run-llm":
-                    try:
-                        await inp.fill(str(answers[q_text].get("answer", "")))
-                        await human_delay(0.5, 1.5)
-                    except Exception as e:
-                        print(f"    [!] Error llenando input: {e}")
+            active_cv_override = None
 
-            # Upload CV for non-semi-auto
-            if mode != "dry-run-llm" and CV_PATH.exists():
-                file_input = page.locator("input[type='file']")
-                if await file_input.count() > 0:
-                    await file_input.first.set_input_files(str(CV_PATH))
-                    await human_delay(1, 2)
-                    print("  [Browser] CV adjuntado")
+        # ── Fill form fields ──
+        print(f"  [Browser] Llenando {q_count} campos del formulario...")
+        for i in range(q_count):
+            inp = question_inputs.nth(i)
+            q_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
+            if q_text in answers:
+                try:
+                    answer_val = str(answers[q_text].get("answer", ""))
+                    await inp.fill(answer_val)
+                    await human_delay(0.3, 0.8)
+                    print(f"    [OK] Campo {i+1} llenado: '{q_text[:40]}...'")
+                except Exception as e:
+                    print(f"    [!] Error llenando campo {i+1}: {e}")
+
+        # ── Upload CV ──
+        cv_to_use = active_cv_override or CV_PATH
+        if cv_to_use.exists():
+            file_input = page.locator("input[type='file']")
+            if await file_input.count() > 0:
+                await file_input.first.set_input_files(str(cv_to_use))
+                await human_delay(1, 2)
+                print(f"  [Browser] CV adjuntado: {cv_to_use.name}")
 
         # ── Submit application ──────────────────────────────
+        print("  [Browser] Buscando boton de enviar...")
         submit_btn = page.locator(
             "button[type='submit'], input[type='submit'], "
             "button:has-text('Enviar'), button:has-text('Confirmar')"
@@ -633,10 +608,43 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             print(f"  [Browser] [OK] Aplicacion enviada!")
             return True, answers
         else:
-            print("  [Browser] No se encontró botón de confirmación")
+            print("  [Browser] No se encontro boton de confirmacion")
             return False, answers
 
     except Exception as e:
         print(f"  [Browser] Error aplicando: {e}")
         await screenshot_on_error(page, f"apply_{job.get('company', 'unknown')}")
         return False, answers
+
+
+async def _emit_review_request(job: dict, page, answers: dict) -> dict:
+    """Emit a REVIEW_REQUEST marker to stdout so bot_runner broadcasts it.
+    Works in ALL modes so the dashboard always shows current offer."""
+    import json as _json
+
+    # Extract job description from the page
+    desc_text = ""
+    try:
+        desc_el = page.locator(".job_info_content, .cm-info, .box_detail, .job-description, article")
+        if await desc_el.count() > 0:
+            desc_text = (await desc_el.first.inner_text()).strip()[:3000]
+    except Exception:
+        pass
+
+    review_data = {
+        "type": "review_request",
+        "job": {
+            "title": job.get("title", ""),
+            "company": job.get("company", ""),
+            "location": job.get("location", ""),
+            "salary": job.get("salary", ""),
+            "url": job.get("url", ""),
+            "description": desc_text,
+        },
+        "answers": answers,
+    }
+
+    # Print the JSON marker so bot_runner broadcasts it to WebSocket clients
+    print(f"[REVIEW_REQUEST]{_json.dumps(review_data, ensure_ascii=False)}")
+    sys.stdout.flush()
+    return review_data

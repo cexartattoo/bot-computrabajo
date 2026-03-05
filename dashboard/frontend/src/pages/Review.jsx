@@ -16,14 +16,14 @@ export default function Review() {
         fetch(`${API}/config/cvs`).then(r => r.json()).then(d => setCvs(d.cvs || [])).catch(() => { })
     }, [])
 
-    // Pick up review requests from shared queue
+    // Pick up review requests from shared queue (any mode)
     useEffect(() => {
-        if (!current && reviewQueue.length > 0) {
-            const item = reviewQueue[0]
-            setCurrent(item)
-            initEditableAnswers(item.answers)
+        if (reviewQueue.length > 0) {
+            const latest = reviewQueue[reviewQueue.length - 1]
+            setCurrent(latest)
+            initEditableAnswers(latest.answers)
         }
-    }, [reviewQueue, current])
+    }, [reviewQueue])
 
     // Also check status for pending review (fallback)
     useEffect(() => {
@@ -100,28 +100,33 @@ export default function Review() {
     const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
     const input = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
     const isRunning = status.status === 'running' || status.status === 'paused'
+    const isSemiAuto = status.mode === 'semi-auto'
 
     // Waiting state
     if (!current) {
         return (
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">Revision (Semi-Auto)</h1>
-                    {isRunning && (
-                        <button onClick={stopBot}
-                            className="px-4 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90"
-                            style={{ background: 'var(--error)', color: '#fff' }}>
-                            Detener Bot
-                        </button>
-                    )}
+                    <h1 className="text-2xl font-bold">Revision</h1>
+                    <div className="flex items-center gap-2">
+                        {isRunning && (
+                            <button onClick={stopBot}
+                                className="px-4 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90"
+                                style={{ background: 'var(--error)', color: '#fff' }}>
+                                Detener Bot
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div className="rounded-xl p-12 text-center space-y-4" style={card}>
                     {isRunning ? (
                         <>
                             <div className="w-12 h-12 mx-auto rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                            <p style={{ color: 'var(--text-secondary)' }}>Esperando siguiente oferta para revision...</p>
+                            <p style={{ color: 'var(--text-secondary)' }}>
+                                {isSemiAuto ? 'Esperando siguiente oferta para revision...' : 'Bot activo. Las ofertas apareceran aqui conforme se procesen.'}
+                            </p>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                El bot esta buscando ofertas. Cuando encuentre una, aparecera aqui.
+                                Modo: <strong>{status.mode || 'apply'}</strong> | Aplicaciones: {status.apps_this_session || 0}
                             </p>
                         </>
                     ) : (
@@ -131,9 +136,9 @@ export default function Review() {
                                     <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                             </div>
-                            <p className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Modo Semi-Auto</p>
+                            <p className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Revision de Ofertas</p>
                             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                                Inicia el bot en modo <strong>Semi-Auto</strong> desde el Panel de Control.
+                                Inicia el bot desde el Panel de Control. En cualquier modo, las ofertas procesadas apareceran aqui con las respuestas de la IA.
                             </p>
                         </>
                     )}
@@ -150,7 +155,8 @@ export default function Review() {
                                 <div key={i} style={{
                                     color: line.includes('[OK]') ? 'var(--success)' :
                                         line.includes('[WARN]') ? 'var(--warning)' :
-                                            line.includes('[SYSTEM]') ? 'var(--accent)' : undefined,
+                                            line.includes('[ERROR]') ? 'var(--error)' :
+                                                line.includes('[SYSTEM]') ? 'var(--accent)' : undefined,
                                 }}>{line}</div>
                             ))}
                         </div>
@@ -173,8 +179,10 @@ export default function Review() {
                             {reviewQueue.length} pendientes
                         </span>
                     )}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono" style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
+                        {status.mode || 'apply'}
+                    </span>
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>En vivo</span>
                     <button onClick={stopBot}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
                         style={{ background: 'var(--error)', color: '#fff' }}>
@@ -265,28 +273,34 @@ export default function Review() {
             </div>
 
             {/* CV selector + Action buttons */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-                <div className="flex items-center gap-2 flex-1">
-                    <label className="text-xs font-medium shrink-0" style={{ color: 'var(--text-secondary)' }}>Hoja de vida:</label>
-                    <select value={selectedCv} onChange={e => setSelectedCv(e.target.value)}
-                        className="rounded-lg px-3 py-2 text-sm flex-1" style={input}>
-                        <option value="">Default (automatico)</option>
-                        {cvs.map(c => <option key={c.filename} value={c.filename}>{c.filename} ({c.size_kb} KB)</option>)}
-                    </select>
+            {isSemiAuto ? (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+                    <div className="flex items-center gap-2 flex-1">
+                        <label className="text-xs font-medium shrink-0" style={{ color: 'var(--text-secondary)' }}>Hoja de vida:</label>
+                        <select value={selectedCv} onChange={e => setSelectedCv(e.target.value)}
+                            className="rounded-lg px-3 py-2 text-sm flex-1" style={input}>
+                            <option value="">Default (automatico)</option>
+                            {cvs.map(c => <option key={c.filename} value={c.filename}>{c.filename} ({c.size_kb} KB)</option>)}
+                        </select>
+                    </div>
+                    <div className="flex gap-3 justify-end shrink-0">
+                        <button onClick={handleReject} disabled={submitting}
+                            className="px-6 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50 hover:opacity-90"
+                            style={{ background: 'var(--error)', color: '#fff' }}>
+                            Rechazar
+                        </button>
+                        <button onClick={handleApprove} disabled={submitting}
+                            className="px-6 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50 hover:opacity-90"
+                            style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
+                            {submitting ? 'Enviando...' : 'Enviar Aplicacion'}
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-3 justify-end shrink-0">
-                    <button onClick={handleReject} disabled={submitting}
-                        className="px-6 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50 hover:opacity-90"
-                        style={{ background: 'var(--error)', color: '#fff' }}>
-                        Rechazar
-                    </button>
-                    <button onClick={handleApprove} disabled={submitting}
-                        className="px-6 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50 hover:opacity-90"
-                        style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
-                        {submitting ? 'Enviando...' : 'Enviar Aplicacion'}
-                    </button>
+            ) : (
+                <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--text-secondary)' }}>
+                    Modo <strong>{status.mode || 'apply'}</strong> -- Vista de solo lectura. Cambia a <strong>Semi-Auto</strong> para editar respuestas antes de enviar.
                 </div>
-            </div>
+            )}
         </div>
     )
 }
