@@ -77,7 +77,7 @@ async def login(page: Page) -> bool:
             return True
 
         print("\n" + "=" * 60)
-        print("  [Browser] 🚨 NO HAY SESIÓN ACTIVA.")
+        print("  [Browser] [!!] NO HAY SESION ACTIVA.")
         print("  [Browser] Asegúrate de que no haya captchas bloqueando la portada.")
         print("  [Browser] Por favor inicie sesión MANUALMENTE en la ventana que se abrió.")
         print("  [Browser] Tienes 5 minutos... El bot continuará automáticamente después.")
@@ -373,7 +373,7 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
 
             # ── Semi-auto: show answer and let user edit ────
             if mode == "semi-auto":
-                conf_icon = {"alta": "🟢", "media": "🟡", "baja": "🔴"}.get(confianza, "⚪")
+                conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"}.get(confianza, "[?]")
                 print(f"\n  [{i+1}/{q_count}] {question_text}")
                 print(f"        Tipo: {tipo} | Confianza: {conf_icon} {confianza}")
                 print(f"        Respuesta: \"{ai_answer}\"")
@@ -389,7 +389,7 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                         tipo = "editada_manual"
                         confianza = "alta"
                 elif user_input == "s":
-                    print("        → Pregunta saltada.")
+                    print("        -> Pregunta saltada.")
                     continue
 
             # ── Fill the input (skip in dry-run-llm) ────────
@@ -407,7 +407,7 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                 "tipo": tipo,
                 "confianza": confianza,
             }
-            conf_icon = {"alta": "🟢", "media": "🟡", "baja": "🔴"}.get(confianza, "⚪")
+            conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"}.get(confianza, "[?]")
             print(f"    - {conf_icon} '{question_text[:60]}...' [{model_used}] ({tipo})")
 
         # ── In dry-run-llm, stop here — don't upload CV or submit ──
@@ -432,7 +432,7 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             except EOFError:
                 confirm = ""
             if confirm == "n":
-                print("  → Aplicación cancelada por el usuario.")
+                print("  -> Aplicacion cancelada por el usuario.")
                 return False, answers
 
         # ── Submit application ──────────────────────────────
@@ -443,7 +443,7 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
         if await submit_btn.count() > 0:
             await submit_btn.first.click()
             await human_delay(2, 4)
-            print(f"  [Browser] ✓ Aplicación enviada!")
+            print(f"  [Browser] [OK] Aplicacion enviada!")
             return True, answers
         else:
             print("  [Browser] No se encontró botón de confirmación")

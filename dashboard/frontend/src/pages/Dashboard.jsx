@@ -8,10 +8,16 @@ const STATUS_COLORS = {
     disconnected: 'bg-orange-500 animate-pulse',
 }
 const STATUS_LABELS = {
-    idle: '⏸ Inactivo', running: '▶ Corriendo',
-    paused: '⏳ Esperando confirmación', error: '❌ Error',
-    stopping: '⏹ Deteniendo...',
-    disconnected: '🔌 Conectando con API...',
+    idle: 'Inactivo', running: 'Corriendo',
+    paused: 'Esperando confirmacion', error: 'Error',
+    stopping: 'Deteniendo...',
+    disconnected: 'Conectando con API...',
+}
+
+function formatElapsed(seconds) {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0')
+    const s = (seconds % 60).toString().padStart(2, '0')
+    return `${m}:${s}`
 }
 
 export default function Dashboard() {
@@ -23,6 +29,8 @@ export default function Dashboard() {
     const [cvs, setCvs] = useState([])
     const [logs, setLogs] = useState([])
     const [loading, setLoading] = useState(false)
+    const [elapsed, setElapsed] = useState(0)
+    const [reportUrl, setReportUrl] = useState(null)
     const logsRef = useRef(null)
     const wsRef = useRef(null)
 
@@ -40,6 +48,16 @@ export default function Dashboard() {
         return () => clearInterval(interval)
     }, [])
 
+    // Elapsed time timer
+    useEffect(() => {
+        if (status.status === 'running') {
+            const timer = setInterval(() => setElapsed(prev => prev + 1), 1000)
+            return () => clearInterval(timer)
+        } else if (status.status === 'idle' || status.status === 'error' || status.status === 'disconnected') {
+            setElapsed(0)
+        }
+    }, [status.status])
+
     // WebSocket for live logs with auto-reconnect
     useEffect(() => {
         let ws
@@ -54,6 +72,13 @@ export default function Dashboard() {
                 })
                 if (e.data.includes('[SYSTEM]')) {
                     fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus).catch(() => { })
+                }
+                // Detect report generated
+                if (e.data.includes('[REPORT]') || e.data.includes('Informe generado')) {
+                    const match = e.data.match(/informe_[\w]+\.html/)
+                    if (match) {
+                        setReportUrl(`${API}/reports/${match[0]}`)
+                    }
                 }
             }
             ws.onclose = () => { reconnectTimer = setTimeout(connect, 3000) }
@@ -71,6 +96,8 @@ export default function Dashboard() {
 
     const startBot = async () => {
         setLoading(true)
+        setReportUrl(null)
+        setElapsed(0)
         const body = { mode, max_apps: maxApps || null, keyword: keyword || null, cv: cv || null }
         const res = await fetch(`${API}/bot/start`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -102,14 +129,19 @@ export default function Dashboard() {
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">Panel de Control</h1>
 
-            {/* Status badge */}
+            {/* Status badge + elapsed timer */}
             <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[status.status] || 'bg-gray-500'}`} />
                 <span className="text-lg font-semibold">{STATUS_LABELS[status.status] || status.status}</span>
                 {isRunning && (
-                    <span className="ml-auto text-sm text-slate-400">
-                        {status.apps_this_session} aplicaciones esta sesión
-                    </span>
+                    <>
+                        <span className="px-2 py-0.5 bg-blue-900/40 text-blue-300 text-xs font-mono rounded">
+                            {formatElapsed(elapsed)} transcurrido
+                        </span>
+                        <span className="ml-auto text-sm text-slate-400">
+                            {status.apps_this_session} aplicaciones esta sesion
+                        </span>
+                    </>
                 )}
             </div>
 
@@ -120,13 +152,13 @@ export default function Dashboard() {
                         <label className="text-xs text-slate-400 font-medium mb-1 block">Modo</label>
                         <select value={mode} onChange={e => setMode(e.target.value)}
                             className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm">
-                            <option value="apply">🟢 Aplicar</option>
-                            <option value="dry-run-llm">🔵 Dry-Run LLM</option>
-                            <option value="semi-auto">🟡 Semi-Auto</option>
+                            <option value="apply">Aplicar</option>
+                            <option value="dry-run-llm">Dry-Run LLM</option>
+                            <option value="semi-auto">Semi-Auto</option>
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs text-slate-400 font-medium mb-1 block">Máx. aplicaciones</label>
+                        <label className="text-xs text-slate-400 font-medium mb-1 block">Max. aplicaciones</label>
                         <input type="number" value={maxApps} onChange={e => setMaxApps(Number(e.target.value))}
                             className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm" min={1} />
                     </div>
@@ -149,30 +181,41 @@ export default function Dashboard() {
                     {!isRunning ? (
                         <button onClick={startBot} disabled={loading}
                             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50">
-                            🚀 Iniciar Bot
+                            Iniciar Bot
                         </button>
                     ) : (
                         <button onClick={stopBot} disabled={loading}
                             className="px-6 py-2.5 bg-red-600 rounded-lg font-semibold text-sm hover:bg-red-700 transition disabled:opacity-50">
-                            ⏹ Detener
+                            Detener
                         </button>
                     )}
                 </div>
             </div>
 
+            {/* Report link */}
+            {reportUrl && (
+                <div className="bg-green-900/20 border border-green-600 rounded-xl p-4 flex items-center gap-3">
+                    <span className="text-green-400 font-semibold text-sm">Informe generado</span>
+                    <a href={reportUrl} target="_blank" rel="noopener noreferrer"
+                        className="px-4 py-1.5 bg-green-600 rounded-lg text-sm font-semibold hover:bg-green-700 transition">
+                        Abrir Informe
+                    </a>
+                </div>
+            )}
+
             {/* Semi-auto confirmation */}
             {status.pending_confirmation && (
                 <div className="bg-yellow-900/30 border border-yellow-600 rounded-xl p-5 space-y-3">
-                    <h3 className="text-yellow-400 font-bold">⏳ Confirmación requerida</h3>
+                    <h3 className="text-yellow-400 font-bold">Confirmacion requerida</h3>
                     <p className="text-sm text-slate-300">{status.pending_confirmation.line}</p>
                     <div className="flex gap-3">
                         <button onClick={() => confirm(true)}
                             className="px-5 py-2 bg-green-600 rounded-lg text-sm font-semibold hover:bg-green-700">
-                            ✅ Aprobar
+                            Aprobar
                         </button>
                         <button onClick={() => confirm(false)}
                             className="px-5 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700">
-                            ❌ Rechazar
+                            Rechazar
                         </button>
                     </div>
                 </div>
@@ -181,17 +224,18 @@ export default function Dashboard() {
             {/* Live logs */}
             <div className="bg-[#0f172a] border border-[#334155] rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2 bg-[#1e293b] border-b border-[#334155]">
-                    <span className="text-xs font-semibold text-slate-400">📋 Logs en vivo</span>
+                    <span className="text-xs font-semibold text-slate-400">Logs en vivo</span>
                     <button onClick={() => setLogs([])} className="text-xs text-slate-500 hover:text-slate-300">Limpiar</button>
                 </div>
                 <div ref={logsRef} className="h-72 overflow-y-auto p-4 font-mono text-xs leading-relaxed text-slate-300 space-y-0.5">
-                    {logs.length === 0 && <p className="text-slate-600 italic">Sin logs aún. Inicia el bot para ver la actividad.</p>}
+                    {logs.length === 0 && <p className="text-slate-600 italic">Sin logs aun. Inicia el bot para ver la actividad.</p>}
                     {logs.map((line, i) => (
                         <div key={i} className={
                             line.includes('[ERROR]') ? 'text-red-400' :
                                 line.includes('[SYSTEM]') ? 'text-blue-400' :
-                                    line.includes('⚠') ? 'text-yellow-400' :
-                                        line.includes('✅') ? 'text-green-400' : ''
+                                    line.includes('[WARN]') ? 'text-yellow-400' :
+                                        line.includes('[OK]') ? 'text-green-400' :
+                                            line.includes('[REPORT]') ? 'text-emerald-400 font-semibold' : ''
                         }>{line}</div>
                     ))}
                 </div>

@@ -38,9 +38,10 @@ SEARCH_KEYWORDS = [
     "desarrollador Python",
     "ingeniero control",
 ]
-SEARCH_LOCATION  = "Bogotá"    # Ciudad principal
-SEARCH_REMOTE    = True        # Incluir trabajos remotos
-MIN_SALARY       = 0           # Filtrar por salario mínimo (0 = sin filtro)
+SEARCH_LOCATIONS = [loc.strip() for loc in os.getenv("SEARCH_LOCATIONS", "Bogota,teletrabajo").split(",") if loc.strip()]
+SEARCH_LOCATION  = SEARCH_LOCATIONS[0] if SEARCH_LOCATIONS else "Bogota"  # backward compat
+SEARCH_REMOTE    = "teletrabajo" in [l.lower() for l in SEARCH_LOCATIONS]  # derived from list
+MIN_SALARY       = 0           # Filtrar por salario minimo (0 = sin filtro)
 
 # ─── Bot Behavior ────────────────────────────────────
 MAX_APPLICATIONS_PER_RUN = 10  # Límite de aplicaciones por sesión

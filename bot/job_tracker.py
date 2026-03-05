@@ -1,13 +1,25 @@
 """
-Job Application Tracker — SQLite database
+Job Application Tracker – SQLite database
 Logs every application attempt with status, AI-generated answers,
 mode used, CV profile, and enriched metadata (tipo, confianza).
 """
 import sqlite3
 import json
+import sys
+import io
 from datetime import datetime
 from pathlib import Path
 from bot.config import DB_PATH
+
+
+def _safe_print(msg: str):
+    """Print that always works regardless of terminal encoding (CP1252, UTF-8, etc.)."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        # Fallback: encode to bytes replacing unknown chars, then write to buffer
+        sys.stdout.buffer.write((msg + "\n").encode("utf-8", errors="replace"))
+        sys.stdout.buffer.flush()
 
 
 def get_connection():
@@ -45,7 +57,7 @@ def init_db():
         """)
         conn.commit()
 
-        # ── Safe migration: add columns if missing ──────────
+        # Safe migration: add columns if missing
         existing_cols = {
             row[1] for row in conn.execute("PRAGMA table_info(applications)").fetchall()
         }
@@ -59,7 +71,7 @@ def init_db():
                     conn.execute(sql)
                     conn.commit()
                 except sqlite3.OperationalError:
-                    pass  # column already exists in some edge case
+                    pass
 
 
 def already_applied(url: str) -> bool:
@@ -86,7 +98,6 @@ def log_application(job_title: str, company: str, url: str,
     answers_json = json.dumps(answers, ensure_ascii=False) if answers else None
     with get_connection() as conn:
         if status == "dry-run":
-            # Dry-run entries should UPSERT: update if URL exists, insert if not
             conn.execute("""
                 INSERT INTO applications
                   (job_title, company, url, location, salary, status, answers_json, notes, mode, cv_used)
@@ -101,7 +112,6 @@ def log_application(job_title: str, company: str, url: str,
             """, (job_title, company, url, location, salary, status, answers_json,
                   notes, mode, cv_used))
         else:
-            # Normal entries: INSERT OR IGNORE (don't overwrite existing)
             conn.execute("""
                 INSERT OR IGNORE INTO applications
                   (job_title, company, url, location, salary, status, answers_json, notes, mode, cv_used)
@@ -109,8 +119,10 @@ def log_application(job_title: str, company: str, url: str,
             """, (job_title, company, url, location, salary, status, answers_json,
                   notes, mode, cv_used))
         conn.commit()
-    status_icon = {"applied": "✓", "error": "✗", "dry-run": "🔍"}.get(status, "•")
-    print(f"  [DB] {status_icon} Registrado: {job_title} @ {company} — {status}")
+
+    status_icon = {"applied": "[OK]", "error": "[ERR]", "dry-run": "[DRY]"}.get(status, "[*]")
+    # ✅ FIX: usar _safe_print para evitar UnicodeEncodeError en CP1252
+    _safe_print(f"  [DB] {status_icon} Registrado: {job_title} @ {company} -- {status}")
 
 
 def log_skip(url: str, reason: str):
@@ -124,17 +136,17 @@ def log_skip(url: str, reason: str):
 
 def get_summary() -> dict:
     with get_connection() as conn:
-        total   = conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
-        applied = conn.execute("SELECT COUNT(*) FROM applications WHERE status='applied'").fetchone()[0]
-        errors  = conn.execute("SELECT COUNT(*) FROM applications WHERE status='error'").fetchone()[0]
+        total    = conn.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
+        applied  = conn.execute("SELECT COUNT(*) FROM applications WHERE status='applied'").fetchone()[0]
+        errors   = conn.execute("SELECT COUNT(*) FROM applications WHERE status='error'").fetchone()[0]
         dry_runs = conn.execute("SELECT COUNT(*) FROM applications WHERE status='dry-run'").fetchone()[0]
     return {"total": total, "applied": applied, "errors": errors, "dry_runs": dry_runs}
 
 
 def print_summary():
     s = get_summary()
-    print(f"\n  Aplicaciones totales: {s['total']}")
-    print(f"  Exitosas: {s['applied']}  |  Errores: {s['errors']}  |  Dry-runs: {s['dry_runs']}")
+    _safe_print(f"\n  Aplicaciones totales: {s['total']}")
+    _safe_print(f"  Exitosas: {s['applied']}  |  Errores: {s['errors']}  |  Dry-runs: {s['dry_runs']}")
 
 
 def generate_report(output_path: str = None) -> str:
@@ -151,16 +163,16 @@ def generate_report(output_path: str = None) -> str:
         ).fetchall()
 
     # Stats
-    total = len(rows)
-    applied = sum(1 for r in rows if r['status'] == 'applied')
-    errors = sum(1 for r in rows if r['status'] == 'error')
+    total    = len(rows)
+    applied  = sum(1 for r in rows if r['status'] == 'applied')
+    errors   = sum(1 for r in rows if r['status'] == 'error')
     dry_runs = sum(1 for r in rows if r['status'] == 'dry-run')
 
     # Model stats & Q&A collection
     model_counts = {}
     qa_by_job = {}
     warnings = []
-    
+
     for r in rows:
         job_id = f"{r['job_title']}@{r['company']}"
         if r['answers_json']:
@@ -168,7 +180,7 @@ def generate_report(output_path: str = None) -> str:
                 answers = json.loads(r['answers_json'])
             except json.JSONDecodeError:
                 continue
-                
+
             if answers and job_id not in qa_by_job:
                 qa_by_job[job_id] = {
                     'job': r['job_title'],
@@ -178,21 +190,21 @@ def generate_report(output_path: str = None) -> str:
                     'applied_at': r['applied_at'],
                     'questions': []
                 }
-                
+
             for q, a_data in answers.items():
                 if isinstance(a_data, dict):
-                    model = a_data.get('model', 'desconocido')
-                    answer = a_data.get('answer', '')
-                    tipo = a_data.get('tipo', 'desconocido')
-                    confianza = a_data.get('confianza', 'media')
+                    model      = a_data.get('model', 'desconocido')
+                    answer     = a_data.get('answer', '')
+                    tipo       = a_data.get('tipo', 'desconocido')
+                    confianza  = a_data.get('confianza', 'media')
                 else:
-                    model = 'legacy'
-                    answer = str(a_data)
-                    tipo = 'legacy'
+                    model     = 'legacy'
+                    answer    = str(a_data)
+                    tipo      = 'legacy'
                     confianza = 'media'
-                
+
                 model_counts[model] = model_counts.get(model, 0) + 1
-                
+
                 qa_entry = {
                     'question': q,
                     'answer': answer,
@@ -201,7 +213,7 @@ def generate_report(output_path: str = None) -> str:
                     'confianza': confianza,
                 }
                 qa_by_job[job_id]['questions'].append(qa_entry)
-                
+
                 if tipo in ('dato_faltante', 'pregunta_vacia') or confianza == 'baja':
                     warnings.append({
                         'job': r['job_title'],
@@ -218,7 +230,7 @@ def generate_report(output_path: str = None) -> str:
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Informe Bot Computrabajo — {now}</title>
+<title>Informe Bot Computrabajo - {now}</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }}
@@ -262,14 +274,12 @@ def generate_report(output_path: str = None) -> str:
   details {{ background: #1e293b; border: 1px solid #334155; border-radius: 10px; margin-bottom: 1rem; overflow: hidden; }}
   summary {{ background: #334155; padding: 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; list-style: none; user-select: none; }}
   summary::-webkit-details-marker {{ display: none; }}
-  summary::before {{ content: '▶'; display: inline-block; transition: transform 0.2s; font-size: 0.8rem; color: #94a3b8; }}
-  details[open] summary::before {{ transform: rotate(90deg); }}
   .details-content {{ padding: 1rem; border-top: 1px solid #334155; }}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>📊 Informe Bot Computrabajo</h1>
+  <h1>Informe Bot Computrabajo</h1>
   <p class="subtitle">Generado: {now}</p>
 
   <div class="stats">
@@ -278,94 +288,45 @@ def generate_report(output_path: str = None) -> str:
     <div class="stat-card error"><div class="number">{errors}</div><div class="label">Con Error</div></div>
     <div class="stat-card dry-run"><div class="number">{dry_runs}</div><div class="label">Dry-Run LLM</div></div>
     <div class="stat-card model"><div class="number">{sum(len(j['questions']) for j in qa_by_job.values())}</div><div class="label">Preguntas Respondidas</div></div>
-    <div class="stat-card warn"><div class="number">{len(warnings)}</div><div class="label">⚠ Advertencias</div></div>
+    <div class="stat-card warn"><div class="number">{len(warnings)}</div><div class="label">Advertencias</div></div>
   </div>
 """
 
     # Model usage section
     if model_counts:
-        html += """  <div class="section"><h2>🤖 Modelos de IA Utilizados</h2><div class="stats">"""
+        html += """  <div class="section"><h2>Modelos de IA Utilizados</h2><div class="stats">"""
         for model, count in sorted(model_counts.items(), key=lambda x: -x[1]):
             html += f'<div class="stat-card model"><div class="number">{count}x</div><div class="label">{model}</div></div>'
         html += "</div></div>"
 
     # Warnings section
     if warnings:
-        html += '  <div class="section"><h2>⚠️ Advertencias (confianza baja / dato faltante)</h2>'
+        html += '  <div class="section"><h2>Advertencias (confianza baja / dato faltante)</h2>'
         for w in warnings:
             html += f"""<div class="warn-card">
       <div class="warn-title">{w['job']} @ {w['company']}</div>
-      <div class="warn-detail">❓ {w['question']}</div>
-      <div class="warn-detail">→ {w['answer'] or '<em>sin respuesta</em>'}</div>
-      <div class="warn-detail" style="margin-top:0.25rem;">Tipo: <span class="badge badge-tipo">{w['tipo']}</span> | Confianza: <span class="badge badge-{w['confianza']}">{w['confianza']}</span></div>
+      <div class="warn-detail">Pregunta: {w['question']}<br>Respuesta: {w['answer']}<br>Tipo: {w['tipo']} | Confianza: {w['confianza']}</div>
     </div>"""
         html += "</div>"
 
-    # Applications table
-    html += """  <div class="section"><h2>📋 Historial de Aplicaciones</h2><table>
-    <tr><th>#</th><th>Cargo</th><th>Empresa</th><th>Ciudad</th><th>Estado</th><th>Modo</th><th>CV</th><th>Fecha</th><th>Notas</th></tr>"""
-    for i, r in enumerate(rows, 1):
-        status = r['status'] or 'unknown'
-        badge_class = f'badge-{status}' if status in ['applied', 'error', 'dry-run'] else ''
-        title_link = f'<a href="{r["url"]}" target="_blank">{r["job_title"][:50]}</a>' if r['url'] else r['job_title'][:50]
-        notes_str = r['notes'] if r['notes'] else ''
-        notes_html = f'<span style="color: #fb7185; font-size: 0.8rem;">{notes_str}</span>' if notes_str else '-'
-        mode_val = r['mode'] if r['mode'] else 'apply'
-        cv_val = r['cv_used'] if r['cv_used'] else '-'
-        html += f"""<tr>
-      <td>{i}</td>
-      <td>{title_link}</td>
-      <td>{r['company'] or '-'}</td>
-      <td>{r['location'] or '-'}</td>
-      <td><span class="badge {badge_class}">{status}</span></td>
-      <td>{mode_val}</td>
-      <td style="font-size:0.75rem;">{cv_val}</td>
-      <td>{r['applied_at'][:16] if r['applied_at'] else '-'}</td>
-      <td>{notes_html}</td>
-    </tr>"""
-    html += "</table></div>"
-
-    # Q&A Section
+    # Q&A by job section
     if qa_by_job:
-        html += '  <div class="section"><h2>💬 Preguntas y Respuestas</h2>'
-        now = datetime.now()
-        
-        for j_id, j_data in qa_by_job.items():
-            status_badge_class = f'badge-{j_data["status"]}' if j_data["status"] in ['applied', 'error', 'dry-run'] else ''
-            status_html = f'<span class="badge {status_badge_class}">{j_data["status"]}</span>'
-            job_link = f'<a href="{j_data["url"]}" target="_blank" style="color: #f1f5f9;">{j_data["job"]} @ {j_data["company"]}</a>' if j_data.get('url') else f'<span style="color: #f1f5f9;">{j_data["job"]} @ {j_data["company"]}</span>'
-            
-            # Formatear fecha y hora
-            fecha_str = j_data.get('applied_at', '')
-            is_new = False
-            fecha_visible = ''
-            if fecha_str:
-                try:
-                    dt = datetime.strptime(fecha_str, '%Y-%m-%d %H:%M:%S')
-                    fecha_visible = dt.strftime('%d/%m/%Y %I:%M %p').lower()
-                    # Si la aplicación fue hace menos de 10 minutos, considerarla "Reciente"
-                    if (now - dt).total_seconds() < 600:
-                        is_new = True
-                except ValueError:
-                    fecha_visible = fecha_str[:16]
-                    
-            date_html = f'<span style="color: #94a3b8; font-size: 0.8rem; margin-left: auto;">🕒 {fecha_visible}</span>' if fecha_visible else ''
-            new_badge = '<span class="badge badge-new">✨ Reciente</span>' if is_new else ''
-            
+        html += '  <div class="section"><h2>Respuestas por Oferta</h2>'
+        for job_id, job_data in qa_by_job.items():
+            status_badge = f'<span class="badge badge-{job_data["status"]}">{job_data["status"]}</span>'
             html += f"""<details>
-      <summary>{job_link} {status_html} {new_badge} {date_html}</summary>
-      <div class="details-content">"""
-            
-            for qa in j_data['questions']:
-                conf_badge = f'<span class="badge badge-{qa["confianza"]}">{qa["confianza"]}</span>'
-                tipo_badge = f'<span class="badge badge-tipo">{qa["tipo"]}</span>'
-                model_badge = f'<span class="badge badge-model">{qa["model"]}</span>'
-                html += f"""<div class="qa-card" style="border-color: #475569; background: #0f172a; margin-bottom: 0.75rem; padding: 1rem;">
-          <div class="question">❓ {qa['question']}</div>
-          <div class="answer">{qa['answer']}</div>
-          <div class="meta">Modelo: {model_badge} Tipo: {tipo_badge} Confianza: {conf_badge}</div>
-        </div>"""
-            
+    <summary>{job_data['job']} @ {job_data['company']} {status_badge} <span style="color:#64748b;font-size:0.8rem;margin-left:auto">{job_data['applied_at']}</span></summary>
+    <div class="details-content">"""
+            for qa in job_data['questions']:
+                html += f"""<div class="qa-card">
+        <div class="question">{qa['question']}</div>
+        <div class="answer">{qa['answer']}</div>
+        <div class="meta">
+          <span class="badge badge-model">{qa['model']}</span>
+          <span class="badge badge-tipo">{qa['tipo']}</span>
+          <span class="badge badge-{qa['confianza']}">{qa['confianza']}</span>
+        </div>
+      </div>"""
             html += """</div>
     </details>"""
         html += "</div>"
@@ -375,5 +336,7 @@ def generate_report(output_path: str = None) -> str:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"\n  📊 Informe generado: {output_path}")
+    # ✅ FIX: usar _safe_print para evitar UnicodeEncodeError en CP1252
+    _safe_print(f"\n  [OK] Informe generado: {output_path}")
+    _safe_print(f"  Abre el informe en tu navegador: {output_path}")
     return output_path

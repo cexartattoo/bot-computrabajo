@@ -23,6 +23,13 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+# ── Fix Windows CP1252 crash: force UTF-8 on stdout/stderr ──
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass  # already UTF-8 or reconfigure not available
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -147,7 +154,7 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                         if already_skipped(url):
                             continue
 
-                    print(f"\n  → {job['title']} @ {job['company']}")
+                    print(f"\n  -> {job['title']} @ {job['company']}")
                     print(f"    {job['location']} | {job['salary']}")
                     print(f"    {url}")
 
@@ -206,7 +213,7 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
         from bot.job_tracker import print_summary, generate_report
         print_summary()
         report_path = generate_report()
-        print(f"  📄 Abre el informe en tu navegador: {report_path}")
+        print(f"  [REPORT] Abre el informe en tu navegador: {report_path}")
         print("=" * 60)
 
 
@@ -240,7 +247,7 @@ def main():
         from bot.job_tracker import init_db, generate_report
         init_db()
         report_path = generate_report()
-        print(f"  📄 Informe generado: {report_path}")
+        print(f"  [REPORT] Informe generado: {report_path}")
         return
 
     # Resolve mode (--dry-run is alias for --mode dry-run-llm)
@@ -262,7 +269,7 @@ def main():
             from bot.job_tracker import init_db, generate_report
             init_db()
             report_path = generate_report()
-            print(f"  📄 Informe generado antes de cerrar: {report_path}")
+            print(f"  [REPORT] Informe generado antes de cerrar: {report_path}")
         except Exception:
             pass
 

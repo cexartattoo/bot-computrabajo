@@ -12,6 +12,7 @@ Modes (set via bot CLI):
   --mode semi-auto   → LLM answers, user reviews/edits each answer before submitting
 """
 import json
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -198,7 +199,16 @@ DESCRIPCIÓN DE LA OFERTA (úsala para personalizar las respuestas):
     address = CANDIDATE_HARD_DATA["direccion"]
     localidad = CANDIDATE_HARD_DATA["localidad"]
 
-    prompt = f"""Eres un experto en recursos humanos y coach de carrera especializado en el mercado laboral colombiano. Tu misión es ayudar a César a conseguir este trabajo redactando respuestas de postulación que sean honestas, específicas y orientadas a resultados.
+    fecha_actual = datetime.now().strftime("%d de %B de %Y")
+
+    prompt = f"""Eres un experto en recursos humanos y coach de carrera especializado en el mercado laboral colombiano. Tu mision es ayudar a Cesar a conseguir este trabajo redactando respuestas de postulacion que sean honestas, especificas y orientadas a resultados.
+
+FECHA ACTUAL: {fecha_actual} -- estamos en 2026.
+
+══════════════════════════════════════════
+CONTEXTO DE EDUCACION (usar SIEMPRE, no inventar):
+══════════════════════════════════════════
+Cesar es Ingeniero Mecatronico graduado en octubre de 2025, Universidad de Pamplona, GPA 4.06, con Tarjeta Profesional COPNIA vigente. Formacion tecnica SENA: Mantenimiento de Motores 2 y 4 Tiempos, mayo 2016, GPA 5.0. NO mencionar que esta estudiando -- es profesional titulado.
 
 ══════════════════════════════════════════
 DATOS REALES DEL CANDIDATO (fuente de verdad):
@@ -461,11 +471,11 @@ def _answer_with_gemini_batch(
 
                 # Debug: log primeros 300 chars de la respuesta
                 preview = text[:300].replace('\n', ' ')
-                print(f"  [AI] 🔍 Respuesta raw ({model_name}, key #{idx+1}): {preview}...")
+                print(f"  [AI] [DBG] Respuesta raw ({model_name}, key #{idx+1}): {preview}...")
 
                 parsed = _parse_json_response(text, valid_questions)
                 if parsed is None:
-                    print(f"  [AI] ⚠ {model_name} (key #{idx+1}): respuesta no es JSON válido. Reintentando...")
+                    print(f"  [AI] [WARN] {model_name} (key #{idx+1}): respuesta no es JSON valido. Reintentando...")
                     continue
 
                 # Formato NUEVO: lista de dicts con pregunta/respuesta/tipo/confianza
@@ -480,7 +490,7 @@ def _answer_with_gemini_batch(
                                 "confianza":  item.get("confianza", "media"),
                             }
                     if result:
-                        print(f"  [AI] ✓ {len(result)} respuestas (formato nuevo) con {model_name} (key #{idx+1})")
+                        print(f"  [AI] [OK] {len(result)} respuestas (formato nuevo) con {model_name} (key #{idx+1})")
                         return result, model_name
 
                 # Formato LEGACY: flat dict {pregunta: respuesta_texto}
@@ -493,7 +503,7 @@ def _answer_with_gemini_batch(
                             "confianza":  "media",
                         }
                     if result:
-                        print(f"  [AI] ✓ {len(result)} respuestas (formato legacy) con {model_name} (key #{idx+1})")
+                        print(f"  [AI] [OK] {len(result)} respuestas (formato legacy) con {model_name} (key #{idx+1})")
                         return result, model_name
 
             except Exception as e:
@@ -501,13 +511,13 @@ def _answer_with_gemini_batch(
                 if any(x in err for x in ["403", "429", "quota", "RESOURCE_EXHAUSTED", "leaked"]):
                     continue
                 elif any(x in err.lower() for x in ["not found", "not supported"]):
-                    print(f"  [AI] ✗ Modelo {model_name} no disponible. Probando siguiente...")
+                    print(f"  [AI] [X] Modelo {model_name} no disponible. Probando siguiente...")
                     break
                 else:
-                    print(f"  [AI] ✗ Error inesperado ({model_name}, key #{idx+1}): {e}")
+                    print(f"  [AI] [X] Error inesperado ({model_name}, key #{idx+1}): {e}")
                     continue
 
-    print("  [AI] ✗ Todas las combinaciones (modelo × key) fallaron. Usando plantillas.")
+    print("  [AI] [X] Todas las combinaciones (modelo x key) fallaron. Usando plantillas.")
     return {}, ""
 
 

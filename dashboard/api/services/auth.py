@@ -1,15 +1,13 @@
 """
-Auth Service — Google OAuth2 + JWT sessions.
+Auth Service – Google OAuth2 + JWT sessions.
 For local/dev use: skip auth if DASHBOARD_DEV_MODE=true in .env.
 """
 import os
 import time
-from datetime import datetime, timedelta
 from typing import Optional
 
 from jose import jwt, JWTError
-from fastapi import Request, HTTPException, Depends
-from fastapi.responses import RedirectResponse
+from fastapi import Request, HTTPException
 
 SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
 ALGORITHM = "HS256"
@@ -24,7 +22,6 @@ _token_blacklist: set[str] = set()
 
 
 def create_token(email: str) -> str:
-    """Create a JWT token for the given email."""
     payload = {
         "sub": email,
         "iat": time.time(),
@@ -34,7 +31,6 @@ def create_token(email: str) -> str:
 
 
 def verify_token(token: str) -> Optional[dict]:
-    """Verify and decode a JWT token. Returns payload or None."""
     if token in _token_blacklist:
         return None
     try:
@@ -53,8 +49,9 @@ def blacklist_token(token: str):
 async def get_current_user(request: Request) -> dict:
     """
     Dependency: extracts and validates auth from the request.
-    In DEV_MODE, returns a mock user.
+    In DEV_MODE, returns a mock user without any auth check.
     """
+    # ✅ FIX: esto estaba dentro de un comentario, por eso nunca corría
     if DEV_MODE:
         return {"email": "dev@localhost", "dev_mode": True}
 

@@ -72,7 +72,7 @@ def test_models():
                 response = model.generate_content("Responde solo con la palabra OK")
                 
                 if response and "OK" in response.text:
-                    print(f"✅ {nombre_limpio:<40} (Key #{idx+1})")
+                    print(f"[OK] {nombre_limpio:<40} (Key #{idx+1})")
                     modelos_funcionales.append(nombre_limpio)
                     funciona = True
                     break
@@ -93,13 +93,13 @@ def test_models():
                     continue
                     
         if not funciona:
-            print(f"❌ {nombre_limpio:<40} ({razon_fallo})")
+            print(f"[FAIL] {nombre_limpio:<40} ({razon_fallo})")
             
         # Pausa para no saturar APIs globales base
         time.sleep(1)
 
     print("\\n" + "="*60)
-    print("🏆 MODELOS RECOMENDADOS (ACTUALIZA config.py o ai_responder.py con estos):")
+    print("[BEST] MODELOS RECOMENDADOS (ACTUALIZA config.py o ai_responder.py con estos):")
     for m in modelos_funcionales:
         print(f'    "{m}",')
     print("="*60)

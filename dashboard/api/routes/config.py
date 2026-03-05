@@ -78,3 +78,46 @@ async def telegram_status(user=Depends(get_current_user)):
         "bot_token_set": bool(os.getenv("TELEGRAM_BOT_TOKEN", "")),
         "chat_id_set": bool(os.getenv("TELEGRAM_CHAT_ID", "")),
     }
+
+
+@router.get("/locations")
+async def get_locations(user=Depends(get_current_user)):
+    config = _get_config_module()
+    return {"locations": config.SEARCH_LOCATIONS}
+
+
+class LocationsUpdate(BaseModel):
+    locations: list[str]
+
+
+@router.put("/locations")
+async def update_locations(body: LocationsUpdate, user=Depends(get_current_user)):
+    """Update search locations at runtime and persist to .env."""
+    config = _get_config_module()
+    config.SEARCH_LOCATIONS = [loc.strip() for loc in body.locations if loc.strip()]
+    # Also update derived compat values
+    config.SEARCH_LOCATION = config.SEARCH_LOCATIONS[0] if config.SEARCH_LOCATIONS else "Bogota"
+    config.SEARCH_REMOTE = "teletrabajo" in [l.lower() for l in config.SEARCH_LOCATIONS]
+    # Persist to .env
+    _update_env("SEARCH_LOCATIONS", ",".join(config.SEARCH_LOCATIONS))
+    return {"saved": True, "locations": config.SEARCH_LOCATIONS}
+
+
+def _update_env(key: str, value: str):
+    """Update or add a key=value in the project .env file."""
+    env_path = PROJECT_ROOT / ".env"
+    lines = []
+    found = False
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    new_lines = []
+    for line in lines:
+        if line.startswith(f"{key}="):
+            new_lines.append(f"{key}={value}")
+            found = True
+        else:
+            new_lines.append(line)
+    if not found:
+        new_lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
