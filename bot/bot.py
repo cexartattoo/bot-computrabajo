@@ -191,8 +191,18 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                         print(f"    {job['location']} | {job['salary']}")
                         print(f"    {url}")
 
-                        # Apply (mode-aware)
-                        success, answers = await apply_to_job(page, job, mode=mode)
+                        # Apply (mode-aware) with per-job timeout
+                        job_timeout = 600 if mode == "semi-auto" else 120
+                        try:
+                            success, answers = await asyncio.wait_for(
+                                apply_to_job(page, job, mode=mode),
+                                timeout=job_timeout,
+                            )
+                        except asyncio.TimeoutError:
+                            print(f"  [WARN] Timeout ({job_timeout}s) procesando oferta. Saltando.")
+                            success, answers = False, {}
+                            consecutive_errors += 1
+                            continue
 
                         if mode == "dry-run-llm":
                             log_application(

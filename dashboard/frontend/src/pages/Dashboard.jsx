@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useBot } from '../context/BotContext'
 
 const API = '/api'
 const STATUS_COLORS = {
@@ -21,34 +23,23 @@ function formatElapsed(seconds) {
 }
 
 export default function Dashboard() {
-    const [status, setStatus] = useState({ status: 'disconnected', mode: 'apply', apps_this_session: 0, log_tail: [] })
+    const { status, setStatus, logs, clearLogs, reportUrl } = useBot()
+    const navigate = useNavigate()
     const [mode, setMode] = useState('dry-run-llm')
     const [maxApps, setMaxApps] = useState(5)
     const [keyword, setKeyword] = useState('')
     const [cv, setCv] = useState('')
     const [cvs, setCvs] = useState([])
-    const [logs, setLogs] = useState([])
     const [loading, setLoading] = useState(false)
     const [elapsed, setElapsed] = useState(0)
-    const [reportUrl, setReportUrl] = useState(null)
     const logsRef = useRef(null)
-    const wsRef = useRef(null)
 
     useEffect(() => {
-        const fetchStatus = () => {
-            fetch(`${API}/bot/status`)
-                .then(r => r.json())
-                .then(d => setStatus(d))
-                .catch(() => setStatus(prev => ({ ...prev, status: 'disconnected' })))
-        }
-        fetchStatus()
-        const interval = setInterval(fetchStatus, 5000)
         fetch(`${API}/config/cvs`).then(r => r.json()).then(d => setCvs(d.cvs || [])).catch(() => { })
-        return () => clearInterval(interval)
     }, [])
 
     useEffect(() => {
-        if (status.status === 'running') {
+        if (status.status === 'running' || status.status === 'paused') {
             const timer = setInterval(() => setElapsed(prev => prev + 1), 1000)
             return () => clearInterval(timer)
         } else if (status.status === 'idle' || status.status === 'error' || status.status === 'disconnected') {
@@ -57,39 +48,11 @@ export default function Dashboard() {
     }, [status.status])
 
     useEffect(() => {
-        let ws
-        let reconnectTimer
-        const connect = () => {
-            const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-            ws = new WebSocket(`${proto}://${location.host}/api/bot/ws`)
-            ws.onmessage = (e) => {
-                setLogs(prev => {
-                    const next = [...prev, e.data]
-                    return next.length > 500 ? next.slice(-500) : next
-                })
-                if (e.data.includes('[SYSTEM]')) {
-                    fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus).catch(() => { })
-                }
-                if (e.data.includes('[REPORT]') || e.data.includes('Informe generado')) {
-                    const match = e.data.match(/informe_[\w]+\.html/)
-                    if (match) setReportUrl(`${API}/reports/${match[0]}`)
-                }
-            }
-            ws.onclose = () => { reconnectTimer = setTimeout(connect, 3000) }
-            ws.onerror = () => { ws.close() }
-            wsRef.current = ws
-        }
-        connect()
-        return () => { clearTimeout(reconnectTimer); ws?.close() }
-    }, [])
-
-    useEffect(() => {
         if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight
     }, [logs])
 
     const startBot = async () => {
         setLoading(true)
-        setReportUrl(null)
         setElapsed(0)
         const body = { mode, max_apps: maxApps || null, keyword: keyword || null, cv: cv || null }
         const res = await fetch(`${API}/bot/start`, {
@@ -98,6 +61,10 @@ export default function Dashboard() {
         const data = await res.json()
         setStatus(prev => ({ ...prev, ...data }))
         setLoading(false)
+        // Redirect to review page in semi-auto mode
+        if (mode === 'semi-auto' && !data.error) {
+            navigate('/review')
+        }
     }
 
     const stopBot = async () => {
@@ -113,7 +80,7 @@ export default function Dashboard() {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ approved }),
         })
-        fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus)
+        fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus).catch(() => { })
     }
 
     const isRunning = status.status === 'running' || status.status === 'paused'
@@ -209,7 +176,7 @@ export default function Dashboard() {
                 <div className="rounded-xl p-5 space-y-3"
                     style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)' }}>
                     <h3 className="font-bold" style={{ color: 'var(--warning)' }}>Confirmacion requerida</h3>
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{status.pending_confirmation.line}</p>
+                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{status.pending_confirmation.line || 'Oferta pendiente de revision'}</p>
                     <div className="flex gap-3">
                         <button onClick={() => confirm(true)}
                             className="px-5 py-2 rounded-lg text-sm font-semibold"
@@ -229,7 +196,7 @@ export default function Dashboard() {
             <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between px-4 py-2" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
                     <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Logs en vivo</span>
-                    <button onClick={() => setLogs([])} className="text-xs hover:opacity-80" style={{ color: 'var(--text-muted)' }}>Limpiar</button>
+                    <button onClick={clearLogs} className="text-xs hover:opacity-80" style={{ color: 'var(--text-muted)' }}>Limpiar</button>
                 </div>
                 <div ref={logsRef} className="h-72 overflow-y-auto p-4 font-mono text-xs leading-relaxed space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
                     {logs.length === 0 && <p className="italic" style={{ color: 'var(--text-muted)' }}>Sin logs aun. Inicia el bot para ver la actividad.</p>}

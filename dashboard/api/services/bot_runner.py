@@ -182,7 +182,6 @@ class BotManager:
                     import json as _json
                     try:
                         json_str = line.split("[REVIEW_REQUEST]", 1)[1]
-                        # Remove the timestamp prefix if present
                         review_data = _json.loads(json_str)
                         self.status = BotStatus.PAUSED
                         self.pending_confirmation = {
@@ -196,6 +195,23 @@ class BotManager:
                                 self._broadcast(_json.dumps(review_data, ensure_ascii=False)),
                                 self._loop
                             )
+                            # Send Telegram notification
+                            try:
+                                from dashboard.api.services.telegram_bot import telegram_bot
+                                job = review_data.get("job", {})
+                                dashboard_url = os.environ.get("DASHBOARD_URL", "http://localhost:8000")
+                                tg_msg = (
+                                    f"Oferta para revision:\n"
+                                    f"<b>{job.get('title', '?')}</b>\n"
+                                    f"{job.get('company', '')} | {job.get('location', '')}\n\n"
+                                    f"<a href=\"{dashboard_url}/#/review\">Revisar en dashboard</a>\n"
+                                    f"O usa /aprobar | /rechazar | /ver_oferta"
+                                )
+                                asyncio.run_coroutine_threadsafe(
+                                    telegram_bot.send(tg_msg), self._loop
+                                )
+                            except Exception:
+                                pass
                         # Don't broadcast the raw line (it's huge JSON)
                         continue
                     except Exception as e:

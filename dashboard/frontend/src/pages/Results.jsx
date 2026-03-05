@@ -79,22 +79,51 @@ export default function Results() {
             </div>
 
             {/* Reports */}
-            {reports.length > 0 && (
-                <section className="rounded-xl p-4 space-y-2" style={card}>
+            <section className="rounded-xl p-4 space-y-3" style={card}>
+                <div className="flex items-center justify-between">
                     <h2 className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>Informes Generados</h2>
-                    <div className="flex flex-wrap gap-2">
-                        {reports.slice(0, 5).map(r => (
-                            <a key={r.filename}
-                                href={`${API}/reports/${r.filename}`}
-                                target="_blank" rel="noopener noreferrer"
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-80 transition"
-                                style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                                {r.filename} ({r.size_kb} KB)
-                            </a>
-                        ))}
+                    <button onClick={async () => {
+                        const res = await fetch(`${API}/reports/generate`, { method: 'POST' })
+                        const d = await res.json()
+                        if (d.report) alert(`Informe generado: ${d.report}`)
+                        else if (d.error) alert(`Error: ${d.error}`)
+                        fetchReports()
+                    }} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
+                        style={{ background: 'var(--success)', color: '#fff' }}>
+                        Generar Informe
+                    </button>
+                </div>
+                {reports.length === 0 ? (
+                    <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>No hay informes generados.</p>
+                ) : (
+                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                        {reports.map(r => {
+                            const modified = new Date(r.modified * 1000).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            return (
+                                <div key={r.filename} className="flex items-center justify-between gap-2 rounded-lg p-2.5"
+                                    style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                                    <div className="flex-1 min-w-0">
+                                        <a href={`${API}/reports/${r.filename}`} target="_blank" rel="noopener noreferrer"
+                                            className="text-sm font-medium hover:underline truncate block" style={{ color: 'var(--success)' }}>
+                                            {r.filename}
+                                        </a>
+                                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                            {r.size_kb} KB | {modified}
+                                        </span>
+                                    </div>
+                                    <button onClick={async () => {
+                                        if (!confirm(`Eliminar ${r.filename}?`)) return
+                                        await fetch(`${API}/reports/${r.filename}`, { method: 'DELETE' })
+                                        fetchReports()
+                                    }} className="text-red-500 opacity-50 hover:opacity-100 text-xs shrink-0">
+                                        Eliminar
+                                    </button>
+                                </div>
+                            )
+                        })}
                     </div>
-                </section>
-            )}
+                )}
+            </section>
 
             {/* Live table */}
             <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>

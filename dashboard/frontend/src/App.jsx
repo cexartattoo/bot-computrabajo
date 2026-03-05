@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import { BotProvider } from './context/BotContext'
 import Dashboard from './pages/Dashboard'
 import History from './pages/History'
 import Results from './pages/Results'
@@ -8,60 +9,71 @@ import Settings from './pages/Settings'
 import ThemeToggle from './components/ThemeToggle'
 
 const NAV = [
-    { path: '/', label: 'Panel', el: <Dashboard /> },
-    { path: '/review', label: 'Revision', el: <Review /> },
-    { path: '/results', label: 'Resultados', el: <Results /> },
-    { path: '/history', label: 'Historial', el: <History /> },
-    { path: '/profile', label: 'Perfil', el: <Profile /> },
-    { path: '/settings', label: 'Config', el: <Settings /> },
+    { path: '/', label: 'Panel' },
+    { path: '/review', label: 'Revision' },
+    { path: '/results', label: 'Resultados' },
+    { path: '/history', label: 'Historial' },
+    { path: '/profile', label: 'Perfil' },
+    { path: '/settings', label: 'Config' },
 ]
+
+function AppShell() {
+    return (
+        <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+            {/* Top nav */}
+            <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }} className="sticky top-0 z-50">
+                <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
+                    <span className="text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                        Cesar Bot
+                    </span>
+                    <div className="flex items-center gap-1">
+                        {NAV.map(n => (
+                            <NavLink
+                                key={n.path}
+                                to={n.path}
+                                end={n.path === '/'}
+                                className={({ isActive }) =>
+                                    `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
+                                        ? 'text-blue-400'
+                                        : 'hover:text-slate-200'
+                                    }`
+                                }
+                                style={({ isActive }) => ({
+                                    backgroundColor: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+                                    color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                                })}
+                            >
+                                {n.label}
+                            </NavLink>
+                        ))}
+                        <div className="ml-2 border-l pl-2" style={{ borderColor: 'var(--border)' }}>
+                            <ThemeToggle />
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            {/* Main content */}
+            <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+                <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/review" element={<Review />} />
+                    <Route path="/results" element={<Results />} />
+                    <Route path="/history" element={<History />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/settings" element={<Settings />} />
+                </Routes>
+            </main>
+        </div>
+    )
+}
 
 export default function App() {
     return (
         <BrowserRouter>
-            <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-                {/* Top nav */}
-                <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }} className="sticky top-0 z-50">
-                    <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
-                        <span className="text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                            Cesar Bot
-                        </span>
-                        <div className="flex items-center gap-1">
-                            {NAV.map(n => (
-                                <NavLink
-                                    key={n.path}
-                                    to={n.path}
-                                    end={n.path === '/'}
-                                    className={({ isActive }) =>
-                                        `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
-                                            ? 'text-blue-400'
-                                            : 'hover:text-slate-200'
-                                        }`
-                                    }
-                                    style={({ isActive }) => ({
-                                        backgroundColor: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
-                                        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                                    })}
-                                >
-                                    {n.label}
-                                </NavLink>
-                            ))}
-                            <div className="ml-2 border-l pl-2" style={{ borderColor: 'var(--border)' }}>
-                                <ThemeToggle />
-                            </div>
-                        </div>
-                    </div>
-                </nav>
-
-                {/* Main content */}
-                <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
-                    <Routes>
-                        {NAV.map(n => (
-                            <Route key={n.path} path={n.path} element={n.el} />
-                        ))}
-                    </Routes>
-                </main>
-            </div>
+            <BotProvider>
+                <AppShell />
+            </BotProvider>
         </BrowserRouter>
     )
 }

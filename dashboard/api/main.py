@@ -49,8 +49,21 @@ from dashboard.api.middleware.rate_limiter import setup_rate_limiter
 async def lifespan(app: FastAPI):
     """Startup / shutdown hooks."""
     print("  [OK] Cesar Bot Dashboard -- API lista")
+    # Start Telegram bot polling
+    try:
+        from dashboard.api.services.telegram_bot import telegram_bot
+        telegram_bot.start_polling()
+        if telegram_bot.enabled:
+            print("  [OK] Telegram bot polling iniciado")
+    except Exception as e:
+        print(f"  [WARN] Telegram bot no pudo iniciar: {e}")
     yield
-    # Shutdown: kill any running bot subprocess
+    # Shutdown
+    try:
+        from dashboard.api.services.telegram_bot import telegram_bot
+        await telegram_bot.stop_polling()
+    except Exception:
+        pass
     from dashboard.api.services.bot_runner import bot_manager
     await bot_manager.stop()
     print("  [STOP] Dashboard API detenida")
@@ -117,6 +130,38 @@ async def get_report(filename: str):
     if not file_path.exists():
         return {"error": "Report not found"}
     return FileResponse(file_path, media_type="text/html")
+
+
+@app.delete("/api/reports/{filename}")
+async def delete_report(filename: str):
+    """Delete a specific HTML report file."""
+    if not filename.startswith("informe_") or not filename.endswith(".html"):
+        return {"error": "Invalid filename"}
+    file_path = BOT_DIR / filename
+    if not file_path.exists():
+        return {"error": "Report not found"}
+    file_path.unlink()
+    return {"deleted": filename}
+
+
+@app.post("/api/reports/generate")
+async def generate_report():
+    """Trigger report generation by running the bot with --report flag."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "bot.bot", "--report"],
+            capture_output=True, text=True, timeout=30,
+            cwd=str(PROJECT_ROOT),
+        )
+        # Find report filename in output
+        import re
+        match = re.search(r'(informe_[\w]+\.html)', result.stdout + result.stderr)
+        if match:
+            return {"report": match.group(1)}
+        return {"message": "Informe generado", "output": result.stdout[-500:]}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 if __name__ == "__main__":

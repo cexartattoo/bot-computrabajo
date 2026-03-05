@@ -81,8 +81,13 @@ async def launch_browser(playwright: Playwright) -> tuple[BrowserContext, Page]:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/122.0.0.0 Safari/537.36"
-        )
+        ),
+        timeout=60000,  # 60s max to launch
     )
+    # Set default navigation/action timeout to 30s
+    context.set_default_timeout(30000)
+    context.set_default_navigation_timeout(45000)
+
     # Remove webdriver flag to avoid detection
     await context.add_init_script(
         "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
@@ -99,16 +104,17 @@ async def launch_browser(playwright: Playwright) -> tuple[BrowserContext, Page]:
 
 async def login(page: Page) -> bool:
     """Log in to Computrabajo. Returns True if successful."""
-    print("  [Browser] Verificando sesión actual...")
-    await page.goto(BASE_URL, wait_until="domcontentloaded")
+    print("  [Browser] Verificando sesion actual...")
+    try:
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=30000)
+    except Exception as e:
+        print(f"  [Browser] Error cargando pagina principal: {e}")
+        return False
     await human_delay(1, 2)
 
     try:
-        # Revisa si ya estamos logueados (buscando indicador de perfil)
-        # Buscar en el header: foto de perfil, contenedor de usuario, o el texto Notificaciones
         profile_indicator = page.locator(".info_user, img[name='imgheadcv']")
         
-        # Le damos un momento por si la página está cargando la sesión
         try:
             await profile_indicator.first.wait_for(state="visible", timeout=10000)
             count = await profile_indicator.count()
@@ -116,27 +122,33 @@ async def login(page: Page) -> bool:
             count = 0
             
         if count > 0:
-            print("  [Browser] ¡Ya estás logueado! Usando la sesión guardada.")
+            print("  [Browser] Ya estas logueado! Usando la sesion guardada.")
             return True
 
         print("\n" + "=" * 60)
         print("  [Browser] [!!] NO HAY SESION ACTIVA.")
-        print("  [Browser] Asegúrate de que no haya captchas bloqueando la portada.")
-        print("  [Browser] Por favor inicie sesión MANUALMENTE en la ventana que se abrió.")
-        print("  [Browser] Tienes 5 minutos... El bot continuará automáticamente después.")
-        print("  [Browser] Nota: La sesión se guardará para las próximas veces.")
+        print("  [Browser] Inicie sesion MANUALMENTE en la ventana del navegador.")
+        print("  [Browser] Tienes 5 minutos... El bot continuara automaticamente.")
         print("=" * 60 + "\n")
         
-        # Vamos a la página de login explícitamente para ayudar al usuario
-        await page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        await page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=30000)
         
-        # Esperamos hasta que el usuario inicie sesión y aparezca el menú de perfil
-        await profile_indicator.first.wait_for(state="visible", timeout=300000)
-        print("  [Browser] ¡Inicio de sesión manual detectado exitosamente!")
-        return True
+        # Wait for manual login with periodic status prints
+        for i in range(30):  # 30 x 10s = 5 min
+            try:
+                await profile_indicator.first.wait_for(state="visible", timeout=10000)
+                print("  [Browser] Inicio de sesion manual detectado!")
+                return True
+            except Exception:
+                remaining = 5 * 60 - (i + 1) * 10
+                if remaining > 0 and (i + 1) % 3 == 0:  # Print every 30s
+                    print(f"  [Browser] Esperando login manual... ({remaining}s restantes)")
+
+        print("  [Browser] Tiempo agotado esperando login manual.")
+        return False
 
     except Exception as e:
-        print(f"  [Browser] Tiempo agotado o error en la verificación de sesión: {e}")
+        print(f"  [Browser] Error en verificacion de sesion: {e}")
         return False
 
 
@@ -335,7 +347,11 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
     from bot.ai_responder import answer_questions_batch, answer_question
 
     print(f"  [Browser] {'[DRY-RUN-LLM] ' if mode == 'dry-run-llm' else ''}Aplicando a: {job['title']} @ {job['company']}")
-    await page.goto(job["url"], wait_until="domcontentloaded")
+    try:
+        await page.goto(job["url"], wait_until="domcontentloaded", timeout=30000)
+    except Exception as e:
+        print(f"  [Browser] Timeout cargando oferta: {e}")
+        return False, {}
     await human_delay(2, 4)
 
     # Natural scroll through the job description before interacting

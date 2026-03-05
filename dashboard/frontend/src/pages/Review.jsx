@@ -1,72 +1,43 @@
 import { useState, useEffect, useRef } from 'react'
+import { useBot } from '../context/BotContext'
 
 const API = '/api'
 
 export default function Review() {
-    const [queue, setQueue] = useState([])
+    const { status, setStatus, reviewQueue, popReview, logs } = useBot()
     const [current, setCurrent] = useState(null)
     const [editedAnswers, setEditedAnswers] = useState({})
-    const [botStatus, setBotStatus] = useState('idle')
     const [submitting, setSubmitting] = useState(false)
     const [cvs, setCvs] = useState([])
     const [selectedCv, setSelectedCv] = useState('')
-    const wsRef = useRef(null)
+    const miniLogRef = useRef(null)
 
-    // Poll bot status + fetch CVs
     useEffect(() => {
-        const interval = setInterval(() => {
-            fetch(`${API}/bot/status`)
-                .then(r => r.json())
-                .then(d => {
-                    setBotStatus(d.status)
-                    // If status includes review data and we don't have a current item
-                    if (d.pending_confirmation?.type === 'review_request' && !current) {
-                        const reviewData = d.pending_confirmation.data
-                        setCurrent(reviewData)
-                        setQueue(prev => {
-                            const exists = prev.some(p => p.job?.url === reviewData.job?.url)
-                            if (!exists) return [...prev, reviewData]
-                            return prev
-                        })
-                        initEditableAnswers(reviewData.answers)
-                    }
-                })
-                .catch(() => { })
-        }, 3000)
         fetch(`${API}/config/cvs`).then(r => r.json()).then(d => setCvs(d.cvs || [])).catch(() => { })
-        return () => clearInterval(interval)
-    }, [current])
-
-    // WebSocket for semi-auto review data
-    useEffect(() => {
-        let ws
-        let reconnectTimer
-        const connect = () => {
-            const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-            ws = new WebSocket(`${proto}://${location.host}/api/bot/ws`)
-            ws.onmessage = (e) => {
-                try {
-                    if (e.data.startsWith('{') || e.data.startsWith('[')) {
-                        const data = JSON.parse(e.data)
-                        if (data.type === 'review_request') {
-                            setQueue(prev => [...prev, data])
-                            if (!current) {
-                                setCurrent(data)
-                                initEditableAnswers(data.answers)
-                            }
-                        }
-                    }
-                } catch {
-                    // Regular log line
-                }
-            }
-            ws.onclose = () => { reconnectTimer = setTimeout(connect, 3000) }
-            ws.onerror = () => { ws.close() }
-            wsRef.current = ws
-        }
-        connect()
-        return () => { clearTimeout(reconnectTimer); ws?.close() }
     }, [])
+
+    // Pick up review requests from shared queue
+    useEffect(() => {
+        if (!current && reviewQueue.length > 0) {
+            const item = reviewQueue[0]
+            setCurrent(item)
+            initEditableAnswers(item.answers)
+        }
+    }, [reviewQueue, current])
+
+    // Also check status for pending review (fallback)
+    useEffect(() => {
+        if (!current && status.pending_confirmation?.type === 'review_request') {
+            const data = status.pending_confirmation.data
+            setCurrent(data)
+            initEditableAnswers(data?.answers)
+        }
+    }, [status.pending_confirmation, current])
+
+    // Auto-scroll mini log
+    useEffect(() => {
+        if (miniLogRef.current) miniLogRef.current.scrollTop = miniLogRef.current.scrollHeight
+    }, [logs])
 
     const initEditableAnswers = (answers) => {
         if (!answers) return
@@ -78,17 +49,9 @@ export default function Review() {
     }
 
     const loadNext = () => {
-        setQueue(prev => {
-            const next = prev.slice(1)
-            if (next.length > 0) {
-                setCurrent(next[0])
-                initEditableAnswers(next[0].answers)
-            } else {
-                setCurrent(null)
-                setEditedAnswers({})
-            }
-            return next
-        })
+        popReview()
+        setCurrent(null)
+        setEditedAnswers({})
     }
 
     const handleApprove = async () => {
@@ -125,29 +88,41 @@ export default function Review() {
         loadNext()
     }
 
+    const stopBot = async () => {
+        await fetch(`${API}/bot/stop`, { method: 'POST' })
+        fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus).catch(() => { })
+    }
+
     const updateAnswer = (question, value) => {
         setEditedAnswers(prev => ({ ...prev, [question]: value }))
     }
 
     const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
     const input = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
+    const isRunning = status.status === 'running' || status.status === 'paused'
 
     // Waiting state
     if (!current) {
         return (
             <div className="space-y-6">
-                <h1 className="text-2xl font-bold">Revision (Semi-Auto)</h1>
+                <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-bold">Revision (Semi-Auto)</h1>
+                    {isRunning && (
+                        <button onClick={stopBot}
+                            className="px-4 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90"
+                            style={{ background: 'var(--error)', color: '#fff' }}>
+                            Detener Bot
+                        </button>
+                    )}
+                </div>
                 <div className="rounded-xl p-12 text-center space-y-4" style={card}>
-                    {botStatus === 'running' || botStatus === 'paused' ? (
+                    {isRunning ? (
                         <>
                             <div className="w-12 h-12 mx-auto rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
                             <p style={{ color: 'var(--text-secondary)' }}>Esperando siguiente oferta para revision...</p>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                El bot buscara ofertas y cuando encuentre una, aparecera aqui con las preguntas y respuestas de la IA para que las revises.
+                                El bot esta buscando ofertas. Cuando encuentre una, aparecera aqui.
                             </p>
-                            {queue.length > 0 && (
-                                <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>{queue.length} en cola</p>
-                            )}
                         </>
                     ) : (
                         <>
@@ -159,11 +134,28 @@ export default function Review() {
                             <p className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Modo Semi-Auto</p>
                             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                                 Inicia el bot en modo <strong>Semi-Auto</strong> desde el Panel de Control.
-                                Cada oferta aparecera aqui con las preguntas y respuestas de la IA para que las revises antes de enviar.
                             </p>
                         </>
                     )}
                 </div>
+
+                {/* Mini log */}
+                {isRunning && (
+                    <div className="rounded-xl overflow-hidden" style={card}>
+                        <div className="px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>
+                            Actividad del bot
+                        </div>
+                        <div ref={miniLogRef} className="h-36 overflow-y-auto p-3 font-mono text-xs space-y-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {logs.slice(-30).map((line, i) => (
+                                <div key={i} style={{
+                                    color: line.includes('[OK]') ? 'var(--success)' :
+                                        line.includes('[WARN]') ? 'var(--warning)' :
+                                            line.includes('[SYSTEM]') ? 'var(--accent)' : undefined,
+                                }}>{line}</div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         )
     }
@@ -176,13 +168,18 @@ export default function Review() {
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">Revision</h1>
                 <div className="flex items-center gap-3">
-                    {queue.length > 1 && (
+                    {reviewQueue.length > 1 && (
                         <span className="px-3 py-1 text-xs font-bold rounded-full" style={{ background: 'rgba(59,130,246,0.2)', color: 'var(--accent)' }}>
-                            {queue.length} pendientes
+                            {reviewQueue.length} pendientes
                         </span>
                     )}
                     <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
                     <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>En vivo</span>
+                    <button onClick={stopBot}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
+                        style={{ background: 'var(--error)', color: '#fff' }}>
+                        Detener
+                    </button>
                 </div>
             </div>
 
@@ -211,7 +208,7 @@ export default function Review() {
                     {job.url && (
                         <a href={job.url} target="_blank" rel="noopener noreferrer"
                             className="inline-block text-xs hover:underline" style={{ color: 'var(--accent)' }}>
-                            Ver oferta original ↗
+                            Ver oferta original
                         </a>
                     )}
                     <hr style={{ borderColor: 'var(--border)' }} />
@@ -230,7 +227,7 @@ export default function Review() {
                     </div>
 
                     {Object.entries(answers).length === 0 && (
-                        <p className="text-sm italic" style={{ color: 'var(--text-muted)' }}>Sin preguntas detectadas en esta oferta.</p>
+                        <p className="text-sm italic" style={{ color: 'var(--text-muted)' }}>Sin preguntas detectadas.</p>
                     )}
                     {Object.entries(answers).map(([question, data], i) => {
                         const meta = typeof data === 'object' ? data : {}
@@ -258,11 +255,9 @@ export default function Review() {
                                     style={input}
                                     placeholder="Escribe o edita la respuesta aqui..."
                                 />
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                                        Tipo: {meta.tipo || '-'} | Modelo: {meta.model || meta.modelo || '-'}
-                                    </span>
-                                </div>
+                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                    Tipo: {meta.tipo || '-'} | Modelo: {meta.model || meta.modelo || '-'}
+                                </span>
                             </div>
                         )
                     })}
@@ -271,7 +266,6 @@ export default function Review() {
 
             {/* CV selector + Action buttons */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-                {/* CV selector */}
                 <div className="flex items-center gap-2 flex-1">
                     <label className="text-xs font-medium shrink-0" style={{ color: 'var(--text-secondary)' }}>Hoja de vida:</label>
                     <select value={selectedCv} onChange={e => setSelectedCv(e.target.value)}
@@ -280,8 +274,6 @@ export default function Review() {
                         {cvs.map(c => <option key={c.filename} value={c.filename}>{c.filename} ({c.size_kb} KB)</option>)}
                     </select>
                 </div>
-
-                {/* Buttons */}
                 <div className="flex gap-3 justify-end shrink-0">
                     <button onClick={handleReject} disabled={submitting}
                         className="px-6 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50 hover:opacity-90"
