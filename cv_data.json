@@ -1,0 +1,208 @@
+{
+  "informacion_personal": {
+    "nombre": "César Javier Ramírez Hormaza",
+    "telefono": "+57 321 9121216",
+    "email": "Ramirezcesarj46@gmail.com",
+    "ciudad": "Bogotá, Colombia",
+    "linkedin": "https://www.linkedin.com/in/cesarramirez-mecatronico/",
+    "github": "https://github.com/cexartattoo",
+    "portafolio": "https://cexartattoo.github.io/cexartattoo/"
+  },
+  "resumen_profesional": "Ingeniero Mecatrónico con experiencia en robótica industrial, visión artificial e integración de sistemas de automatización. Creador del Robot Tatuador 360, primer sistema de tatuaje robótico de precisión (±80nm) en Latinoamérica y ganador de competencia de robótica universitaria. He asesorado más de 25 proyectos de automatización e IA en 4 países (Colombia, México, Argentina, España), implementando soluciones con OpenCV, YOLO, PLC Siemens y ROS. Busco oportunidades como Ingeniero de Automatización, Visión Artificial o Desarrollo de Software en Bogotá o de forma remota.",
+  "educacion": [
+    {
+      "titulo": "Ingeniero en Mecatrónica",
+      "institucion": "Universidad de Pamplona",
+      "ubicacion": "Pamplona, Colombia",
+      "fecha_inicio": "Agosto 2019",
+      "fecha_fin": "Octubre 2025",
+      "gpa": "4.06",
+      "distinciones": "Tesis de grado 5.0 — Diseño e implementación de sistema automatizado de manufactura con PLC Siemens S7-1200"
+    },
+    {
+      "titulo": "Mantenimiento de Motores de 2 y 4 Tiempos de Motocicletas",
+      "institucion": "SENA",
+      "ubicacion": "Chinacota, Colombia",
+      "fecha_inicio": "Marzo 2016",
+      "fecha_fin": "Mayo 2016",
+      "gpa": "5.0",
+      "distinciones": ""
+    }
+  ],
+  "experiencia": [
+    {
+      "cargo": "Ingeniero de Automatización (Tesista)",
+      "empresa": "Pasteles donde Don Pedro",
+      "ubicacion": "Cúcuta, Colombia",
+      "fecha_inicio": "Junio 2024",
+      "fecha_fin": "Febrero 2025",
+      "responsabilidades": [
+        "Diseñé e implementé sistema de manufactura y corte de masa con troquel rotativo automatizado, eliminando el 100% de las tareas manuales repetitivas de corte",
+        "Programé PLC Siemens S7-1200 para control secuencial de proceso, logrando una reducción del 25% en tiempos de ciclo de producción",
+        "Automaticé proceso que eliminó casos de síndrome del túnel carpiano en operarios, mejorando condiciones de trabajo y reduciendo ausentismo",
+        "Implementé mantenimiento preventivo y correctivo de sistemas robóticos garantizando disponibilidad superior al 95%",
+        "Desarrollé HMI para supervisión en tiempo real del proceso, facilitando operación por personal sin formación técnica avanzada"
+      ]
+    },
+    {
+      "cargo": "Asesor Técnico / Consultor en Robótica e IA",
+      "empresa": "TusClases (Freelance Internacional)",
+      "ubicacion": "Internacional — Colombia, México, Argentina, España (Online)",
+      "fecha_inicio": "Agosto 2022",
+      "fecha_fin": "Presente",
+      "responsabilidades": [
+        "Asesoré más de 25 proyectos internacionales de robótica, visión artificial e IA para estudiantes e ingenieros en 4 países",
+        "Diseñé e implementé robot delta para clasificación y empaque de botellas en tripacks con sistema de visión artificial y sensor Hall Effect",
+        "Implementé modelos YOLO y LLMs para detección y clasificación de objetos en tiempo real en entornos industriales",
+        "Desarrollé algoritmos de cinemática inversa y control de trayectorias para robots seriales y paralelos (delta)",
+        "Integré comunicaciones industriales WiFi, Bluetooth y LoRa en proyectos de automatización y control remoto",
+        "Programé controladores PID y sistemas de control adaptativo para optimización de procesos en tiempo real",
+        "Desarrollé interfaces web y servidores embebidos (Flask/FastAPI) para control y monitoreo de procesos industriales",
+        "Diseñé sistemas CAD en SolidWorks, Fusion 360 y OnShape para fabricación por impresión 3D y mecanizado CNC"
+      ]
+    }
+  ],
+  "proyectos": [
+    {
+      "nombre": "Robot Tatuador 360",
+      "fecha": "2022 – 2025",
+      "descripcion": "Primer robot tatuador de precisión en Latinoamérica, capaz de tatuar sobre volúmenes cilíndricos (brazos, piernas) con control de profundidad de ±80 nanómetros. El sistema incluye escaneo 3D por fotogrametría de la zona a intervenir, previsualización del resultado sobre modelo 3D y algoritmos propios de conversión 3D a 2D para planificación de trayectorias.",
+      "tecnologias": [
+        "Python, C++, Arduino, MATLAB",
+        "Raspberry Pi 4, ESP32, Servos MKS 57D",
+        "OpenCV — visión artificial y fotogrametría",
+        "SolidWorks — diseño CAD de la estructura robótica",
+        "Algoritmos propios: trayectorias zig-zag, conversión 3D a 2D, calibración automática",
+        "Comunicación WiFi para control remoto"
+      ],
+      "resultados": [
+        "1er lugar — Competencia de Robótica Universidad de Pamplona",
+        "Primer tatuaje funcional realizado sobre brazo sintético con robot",
+        "Control de profundidad de ±80 nanómetros — sin precedente en la región"
+      ]
+    },
+    {
+      "nombre": "Robot Delta y Sistema de Clasificación Industrial",
+      "fecha": "2024 – 2025",
+      "descripcion": "Robot delta de 3 GDL para clasificación automática de productos en banda transportadora de 1 metro. El sistema integra visión artificial para detección de objetos, calibración automática de trayectorias y comunicación Modbus entre Arduino y PLC Siemens S7-1200.",
+      "tecnologias": [
+        "Python, C++, Arduino",
+        "Sensores angulares Hall Effect para retroalimentación de posición",
+        "Ventosa de aspiración por efecto Venturi",
+        "OpenCV para detección y clasificación de productos",
+        "PLC Siemens S7-1200 — control maestro del proceso",
+        "Comunicación Modbus TCP entre Arduino y PLC"
+      ],
+      "resultados": [
+        "Sistema operativo con auto-calibración y tolerancia a variaciones de producto",
+        "Implementación y validación de cinemática inversa y directa del robot delta",
+        "Integración exitosa entre sistema de visión, robot y PLC en loop cerrado"
+      ]
+    },
+    {
+      "nombre": "Sistema de Clasificación de Residuos con IA (Gemini Vision)",
+      "fecha": "2026",
+      "descripcion": "Sistema de clasificación de residuos sólidos usando visión artificial powered by Google Gemini API. El sistema captura imágenes en tiempo real, las analiza con el modelo de visión de Gemini y clasifica los residuos por categoría para orientar su disposición correcta.",
+      "tecnologias": [
+        "Python — orquestación del sistema",
+        "Google Gemini API — modelo de visión y lenguaje",
+        "OpenCV — captura y preprocesamiento de imágenes"
+      ],
+      "resultados": [
+        "Clasificación en tiempo real de múltiples categorías de residuos",
+        "Interfaz web para visualización de resultados"
+      ]
+    }
+  ],
+  "habilidades": {
+    "lenguajes_programacion": {
+      "Python": "Avanzado",
+      "C/C++": "Intermedio",
+      "MATLAB": "Avanzado",
+      "JavaScript": "Básico",
+      "Ladder Logic (PLC)": "Intermedio",
+      "Modbus": "Intermedio"
+    },
+    "software_diseno": {
+      "SolidWorks": "Avanzado",
+      "Fusion 360": "Intermedio",
+      "AutoCAD": "Intermedio",
+      "Inventor": "Intermedio",
+      "OnShape": "Intermedio"
+    },
+    "robotica_automatizacion": {
+      "ROS / ROS2": "Intermedio",
+      "Cinemática y dinámica de robots": "Avanzado",
+      "Control de trayectorias": "Avanzado",
+      "Planificación de movimiento": "Intermedio",
+      "PLC Siemens S7-1200/1500": "Intermedio",
+      "SCADA": "Intermedio",
+      "HMI": "Intermedio"
+    },
+    "vision_artificial": {
+      "OpenCV": "Avanzado",
+      "Procesamiento de imágenes": "Avanzado",
+      "Fotogrametría": "Avanzado",
+      "YOLO (v5/v8)": "Avanzado",
+      "LLM para visión (Gemini, GPT-4V)": "Avanzado",
+      "Machine Learning para visión": "Avanzado",
+      "Machine Learning ": "Avanzado"
+    },
+    "hardware_electronica": {
+      "Raspberry Pi": "Avanzado",
+      "Arduino (Uno/Mega/Nano)": "Experto",
+      "ESP32 / ESP8266": "Avanzado",
+      "Sensores industriales": "Intermedio",
+      "Actuadores neumáticos y eléctricos": "Intermedio",
+      "Comunicación WiFi / Bluetooth / LoRa": "Avanzado",
+      "Modbus TCP/RTU": "Intermedio"
+    },
+    "desarrollo_software": {
+      "Git / GitHub": "Avanzado",
+      "Linux (Ubuntu/Debian)": "Avanzado",
+      "Docker": "Avanzado",
+      "Flask / FastAPI": "Avanzado",
+      "VS Code": "Experto",
+      "Cloudflare": "Avanzado",
+      "Google Auth": "Avanzado",
+      "Google Sheets": "Avanzado",
+      "Google App": "Avanzado"
+    },
+    "manufactura": {
+      "Impresión 3D (FDM)": "Avanzado",
+      "Mecanizado CNC": "Intermedio",
+      "Selección de materiales": "Intermedio",
+      "Procesos de manufactura": "Avanzado"
+    }
+  },
+  "certificaciones": [],
+  "idiomas": {
+    "Español": "Nativo",
+    "Inglés": "Avanzado"
+  },
+  "informacion_adicional": {
+    "areas_interes": [
+      "Automatización industrial",
+      "Visión artificial e IA aplicada",
+      "Robótica industrial y colaborativa",
+      "Desarrollo de software embebido",
+      "Control de procesos",
+      "Investigación y desarrollo"
+    ],
+    "disponibilidad": "Inmediata",
+    "tipo_empleo": [
+      "Tiempo completo",
+      "Remoto",
+      "Híbrido",
+      "Presencial"
+    ],
+    "premios": "1er lugar Competencia de Robótica — Universidad de Pamplona (2022)",
+    "enlaces_demos": {
+      "portafolio": "https://cexartattoo.github.io/cexartattoo/",
+      "robot_tatuador": "https://www.youtube.com/watch?v=SfXVfhMWj6g",
+      "robot_delta": "https://www.youtube.com/watch?v=fGaD3QNsEJI",
+      "github": "https://github.com/cexartattoo",
+      "linkedin": "https://www.linkedin.com/in/cesarramirez-mecatronico/"
+    }
+  }
+}

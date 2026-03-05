@@ -1,0 +1,80 @@
+"""
+Config Routes — Keywords, API key status, CV list.
+"""
+import os
+import sys
+from pathlib import Path
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
+from dashboard.api.services.auth import get_current_user
+
+router = APIRouter()
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+def _get_config_module():
+    """Import bot.config dynamically."""
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+    from bot import config
+    return config
+
+
+@router.get("/keywords")
+async def get_keywords(user=Depends(get_current_user)):
+    config = _get_config_module()
+    return {"keywords": config.SEARCH_KEYWORDS}
+
+
+class KeywordsUpdate(BaseModel):
+    keywords: list[str]
+
+
+@router.put("/keywords")
+async def update_keywords(body: KeywordsUpdate, user=Depends(get_current_user)):
+    """Update keywords in config.py (runtime only, persistent via .env)."""
+    config = _get_config_module()
+    config.SEARCH_KEYWORDS = body.keywords
+    return {"saved": True, "keywords": config.SEARCH_KEYWORDS}
+
+
+@router.get("/api-keys")
+async def api_keys_status(user=Depends(get_current_user)):
+    """Show which API keys are configured (never expose the actual values)."""
+    keys = []
+    for i in range(1, 6):
+        suffix = "" if i == 1 else f"_{i}"
+        env_name = f"GEMINI_API_KEY{suffix}"
+        value = os.getenv(env_name, "")
+        keys.append({
+            "name": env_name,
+            "configured": bool(value),
+            "preview": f"{value[:8]}...{value[-4:]}" if len(value) > 12 else ("***" if value else ""),
+        })
+    return {"keys": keys}
+
+
+@router.get("/cvs")
+async def list_cvs(user=Depends(get_current_user)):
+    """List available CV files."""
+    cv_dir = PROJECT_ROOT
+    files = []
+    for f in cv_dir.glob("*.docx"):
+        files.append({
+            "filename": f.name,
+            "size_kb": round(f.stat().st_size / 1024, 1),
+            "path": str(f),
+        })
+    return {"cvs": files}
+
+
+@router.get("/telegram")
+async def telegram_status(user=Depends(get_current_user)):
+    from dashboard.api.services.notifier import is_telegram_configured
+    return {
+        "configured": is_telegram_configured(),
+        "bot_token_set": bool(os.getenv("TELEGRAM_BOT_TOKEN", "")),
+        "chat_id_set": bool(os.getenv("TELEGRAM_CHAT_ID", "")),
+    }

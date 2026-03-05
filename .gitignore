@@ -1,0 +1,14 @@
+.env
+applications.db
+bot.log
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+dashboard/frontend/node_modules/
+bot/playwright_data/
+bot/informe_*.html
+*.backup_*.json
+debug_page.html
+test_page*.html
+playwright_data/
