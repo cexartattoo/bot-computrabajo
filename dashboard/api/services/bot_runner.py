@@ -46,6 +46,9 @@ class BotManager:
         self._reader_thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._project_root = Path(__file__).resolve().parent.parent.parent.parent
+        self._log_file = None
+        self._logs_dir = self._project_root / "logs"
+        self._logs_dir.mkdir(exist_ok=True)
 
     async def start(self, mode: str = "apply", max_apps: int = None,
                     keyword: str = None, cv: str = None) -> dict:
@@ -65,6 +68,21 @@ class BotManager:
         self.session_start = datetime.now()
         self.apps_this_session = 0
         self.log_lines.clear()
+
+        # Clean old log files (older than 7 days)
+        self._clean_old_logs()
+
+        # Open log file for this session
+        log_filename = f"bot_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+        try:
+            if self._log_file:
+                self._log_file.close()
+            self._log_file = open(
+                self._logs_dir / log_filename, "w", encoding="utf-8"
+            )
+        except Exception as e:
+            logger.warning(f"Could not open log file: {e}")
+            self._log_file = None
 
         # Force UTF-8 to avoid UnicodeEncodeError on Windows (CP1252)
         subprocess_env = {
@@ -139,6 +157,14 @@ class BotManager:
                 if len(self.log_lines) > self.max_log_lines:
                     self.log_lines = self.log_lines[-self.max_log_lines:]
 
+                # Write to log file
+                if self._log_file:
+                    try:
+                        self._log_file.write(line + "\n")
+                        self._log_file.flush()
+                    except Exception:
+                        pass
+
                 if "Registrado:" in line or "aplicaciones procesadas" in line:
                     self.apps_this_session += 1
 
@@ -201,6 +227,26 @@ class BotManager:
                             )
                         except Exception:
                             pass
+
+            # Close log file
+            if self._log_file:
+                try:
+                    self._log_file.close()
+                except Exception:
+                    pass
+                self._log_file = None
+
+    def _clean_old_logs(self, max_age_days: int = 7):
+        """Remove log files older than max_age_days."""
+        import time
+        now = time.time()
+        cutoff = now - (max_age_days * 86400)
+        try:
+            for f in self._logs_dir.glob("bot_*.log"):
+                if f.stat().st_mtime < cutoff:
+                    f.unlink()
+        except Exception:
+            pass
 
     async def stop(self) -> dict:
         """Stop the running bot subprocess gracefully."""

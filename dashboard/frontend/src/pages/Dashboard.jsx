@@ -34,7 +34,6 @@ export default function Dashboard() {
     const logsRef = useRef(null)
     const wsRef = useRef(null)
 
-    // Fetch status with auto-retry
     useEffect(() => {
         const fetchStatus = () => {
             fetch(`${API}/bot/status`)
@@ -48,7 +47,6 @@ export default function Dashboard() {
         return () => clearInterval(interval)
     }, [])
 
-    // Elapsed time timer
     useEffect(() => {
         if (status.status === 'running') {
             const timer = setInterval(() => setElapsed(prev => prev + 1), 1000)
@@ -58,7 +56,6 @@ export default function Dashboard() {
         }
     }, [status.status])
 
-    // WebSocket for live logs with auto-reconnect
     useEffect(() => {
         let ws
         let reconnectTimer
@@ -73,12 +70,9 @@ export default function Dashboard() {
                 if (e.data.includes('[SYSTEM]')) {
                     fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus).catch(() => { })
                 }
-                // Detect report generated
                 if (e.data.includes('[REPORT]') || e.data.includes('Informe generado')) {
                     const match = e.data.match(/informe_[\w]+\.html/)
-                    if (match) {
-                        setReportUrl(`${API}/reports/${match[0]}`)
-                    }
+                    if (match) setReportUrl(`${API}/reports/${match[0]}`)
                 }
             }
             ws.onclose = () => { reconnectTimer = setTimeout(connect, 3000) }
@@ -89,7 +83,6 @@ export default function Dashboard() {
         return () => { clearTimeout(reconnectTimer); ws?.close() }
     }, [])
 
-    // Auto-scroll logs
     useEffect(() => {
         if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight
     }, [logs])
@@ -125,6 +118,9 @@ export default function Dashboard() {
 
     const isRunning = status.status === 'running' || status.status === 'paused'
 
+    const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
+    const input = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
+
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">Panel de Control</h1>
@@ -135,10 +131,11 @@ export default function Dashboard() {
                 <span className="text-lg font-semibold">{STATUS_LABELS[status.status] || status.status}</span>
                 {isRunning && (
                     <>
-                        <span className="px-2 py-0.5 bg-blue-900/40 text-blue-300 text-xs font-mono rounded">
+                        <span className="px-2 py-0.5 text-xs font-mono rounded"
+                            style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent)' }}>
                             {formatElapsed(elapsed)} transcurrido
                         </span>
-                        <span className="ml-auto text-sm text-slate-400">
+                        <span className="ml-auto text-sm" style={{ color: 'var(--text-secondary)' }}>
                             {status.apps_this_session} aplicaciones esta sesion
                         </span>
                     </>
@@ -146,31 +143,31 @@ export default function Dashboard() {
             </div>
 
             {/* Controls */}
-            <div className="bg-[#1e293b] rounded-xl border border-[#334155] p-5 space-y-4">
+            <div className="rounded-xl p-5 space-y-4" style={card}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                        <label className="text-xs text-slate-400 font-medium mb-1 block">Modo</label>
+                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Modo</label>
                         <select value={mode} onChange={e => setMode(e.target.value)}
-                            className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm">
+                            className="w-full rounded-lg px-3 py-2 text-sm" style={input}>
                             <option value="apply">Aplicar</option>
                             <option value="dry-run-llm">Dry-Run LLM</option>
                             <option value="semi-auto">Semi-Auto</option>
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs text-slate-400 font-medium mb-1 block">Max. aplicaciones</label>
+                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Max. aplicaciones</label>
                         <input type="number" value={maxApps} onChange={e => setMaxApps(Number(e.target.value))}
-                            className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm" min={1} />
+                            className="w-full rounded-lg px-3 py-2 text-sm" style={input} min={1} />
                     </div>
                     <div>
-                        <label className="text-xs text-slate-400 font-medium mb-1 block">Keyword</label>
+                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Keyword</label>
                         <input type="text" value={keyword} onChange={e => setKeyword(e.target.value)}
-                            placeholder="ej: ingeniero" className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm" />
+                            placeholder="ej: ingeniero" className="w-full rounded-lg px-3 py-2 text-sm" style={input} />
                     </div>
                     <div>
-                        <label className="text-xs text-slate-400 font-medium mb-1 block">CV</label>
+                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>CV</label>
                         <select value={cv} onChange={e => setCv(e.target.value)}
-                            className="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm">
+                            className="w-full rounded-lg px-3 py-2 text-sm" style={input}>
                             <option value="">Auto (default)</option>
                             {cvs.map(c => <option key={c.filename} value={c.filename}>{c.filename}</option>)}
                         </select>
@@ -180,12 +177,14 @@ export default function Dashboard() {
                 <div className="flex gap-3 pt-2">
                     {!isRunning ? (
                         <button onClick={startBot} disabled={loading}
-                            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50">
+                            className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
+                            style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
                             Iniciar Bot
                         </button>
                     ) : (
                         <button onClick={stopBot} disabled={loading}
-                            className="px-6 py-2.5 bg-red-600 rounded-lg font-semibold text-sm hover:bg-red-700 transition disabled:opacity-50">
+                            className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
+                            style={{ background: 'var(--error)', color: '#fff' }}>
                             Detener
                         </button>
                     )}
@@ -194,10 +193,12 @@ export default function Dashboard() {
 
             {/* Report link */}
             {reportUrl && (
-                <div className="bg-green-900/20 border border-green-600 rounded-xl p-4 flex items-center gap-3">
-                    <span className="text-green-400 font-semibold text-sm">Informe generado</span>
+                <div className="rounded-xl p-4 flex items-center gap-3"
+                    style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid var(--success)' }}>
+                    <span className="font-semibold text-sm" style={{ color: 'var(--success)' }}>Informe generado</span>
                     <a href={reportUrl} target="_blank" rel="noopener noreferrer"
-                        className="px-4 py-1.5 bg-green-600 rounded-lg text-sm font-semibold hover:bg-green-700 transition">
+                        className="px-4 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90 transition"
+                        style={{ background: 'var(--success)', color: '#fff' }}>
                         Abrir Informe
                     </a>
                 </div>
@@ -205,16 +206,19 @@ export default function Dashboard() {
 
             {/* Semi-auto confirmation */}
             {status.pending_confirmation && (
-                <div className="bg-yellow-900/30 border border-yellow-600 rounded-xl p-5 space-y-3">
-                    <h3 className="text-yellow-400 font-bold">Confirmacion requerida</h3>
-                    <p className="text-sm text-slate-300">{status.pending_confirmation.line}</p>
+                <div className="rounded-xl p-5 space-y-3"
+                    style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)' }}>
+                    <h3 className="font-bold" style={{ color: 'var(--warning)' }}>Confirmacion requerida</h3>
+                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{status.pending_confirmation.line}</p>
                     <div className="flex gap-3">
                         <button onClick={() => confirm(true)}
-                            className="px-5 py-2 bg-green-600 rounded-lg text-sm font-semibold hover:bg-green-700">
+                            className="px-5 py-2 rounded-lg text-sm font-semibold"
+                            style={{ background: 'var(--success)', color: '#fff' }}>
                             Aprobar
                         </button>
                         <button onClick={() => confirm(false)}
-                            className="px-5 py-2 bg-red-600 rounded-lg text-sm font-semibold hover:bg-red-700">
+                            className="px-5 py-2 rounded-lg text-sm font-semibold"
+                            style={{ background: 'var(--error)', color: '#fff' }}>
                             Rechazar
                         </button>
                     </div>
@@ -222,21 +226,22 @@ export default function Dashboard() {
             )}
 
             {/* Live logs */}
-            <div className="bg-[#0f172a] border border-[#334155] rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2 bg-[#1e293b] border-b border-[#334155]">
-                    <span className="text-xs font-semibold text-slate-400">Logs en vivo</span>
-                    <button onClick={() => setLogs([])} className="text-xs text-slate-500 hover:text-slate-300">Limpiar</button>
+            <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between px-4 py-2" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Logs en vivo</span>
+                    <button onClick={() => setLogs([])} className="text-xs hover:opacity-80" style={{ color: 'var(--text-muted)' }}>Limpiar</button>
                 </div>
-                <div ref={logsRef} className="h-72 overflow-y-auto p-4 font-mono text-xs leading-relaxed text-slate-300 space-y-0.5">
-                    {logs.length === 0 && <p className="text-slate-600 italic">Sin logs aun. Inicia el bot para ver la actividad.</p>}
+                <div ref={logsRef} className="h-72 overflow-y-auto p-4 font-mono text-xs leading-relaxed space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                    {logs.length === 0 && <p className="italic" style={{ color: 'var(--text-muted)' }}>Sin logs aun. Inicia el bot para ver la actividad.</p>}
                     {logs.map((line, i) => (
-                        <div key={i} className={
-                            line.includes('[ERROR]') ? 'text-red-400' :
-                                line.includes('[SYSTEM]') ? 'text-blue-400' :
-                                    line.includes('[WARN]') ? 'text-yellow-400' :
-                                        line.includes('[OK]') ? 'text-green-400' :
-                                            line.includes('[REPORT]') ? 'text-emerald-400 font-semibold' : ''
-                        }>{line}</div>
+                        <div key={i} style={{
+                            color: line.includes('[ERROR]') ? 'var(--error)' :
+                                line.includes('[SYSTEM]') ? 'var(--accent)' :
+                                    line.includes('[WARN]') ? 'var(--warning)' :
+                                        line.includes('[OK]') ? 'var(--success)' :
+                                            line.includes('[REPORT]') ? 'var(--success)' : undefined,
+                            fontWeight: line.includes('[REPORT]') ? 600 : undefined,
+                        }}>{line}</div>
                     ))}
                 </div>
             </div>

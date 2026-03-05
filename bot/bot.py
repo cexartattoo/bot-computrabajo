@@ -78,6 +78,10 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
         launch_browser, login, search_jobs_paginated,
         apply_to_job, human_delay, rest_break
     )
+    from bot.job_tracker import (
+        init_db, already_applied, already_skipped,
+        log_application, log_skip
+    )
 
     # Check credentials
     if not CT_EMAIL or not CT_PASSWORD:
