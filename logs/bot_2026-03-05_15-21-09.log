@@ -1,0 +1,61 @@
+[15:21:09] <frozen runpy>:128: RuntimeWarning: 'bot.bot' found in sys.modules after import of package 'bot', but prior to execution of 'bot.bot'; this may result in unpredictable behaviour
+[15:21:11] C:\Users\ramir\Desktop\computrabajo\bot\ai_responder.py:19: FutureWarning:
+[15:21:11] All support for the `google.generativeai` package has ended. It will no longer be receiving
+[15:21:11] updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+[15:21:11] See README for more details:
+[15:21:11] https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+[15:21:11]   import google.generativeai as genai
+[15:21:59] ============================================================
+[15:21:59]   COMPUTRABAJO BOT  --  SEMI-AUTO (revision humana)
+[15:21:59]   Keywords: ['programador Python', 'ingeniero control', 'visión artificial', 'automatización industrial', 'ingeniero mecatrónico', 'desarrollador Python', 'ingeniero robótica']
+[15:21:59]   Ubicaciones: ['Bogota', 'teletrabajo']
+[15:21:59]   Limite por sesion: 5 aplicaciones
+[15:21:59]   CV: CV_ATS_César.docx
+[15:21:59] ============================================================
+[15:21:59]   [Browser] Verificando sesión actual...
+[15:21:59]   [Browser] ¡Ya estás logueado! Usando la sesión guardada.
+[15:21:59]   [Browser] Buscando: 'programador Python' en 'Bogota'...
+[15:21:59]   [Browser] Encontradas 20 ofertas
+[15:21:59]   Procesando 20 ofertas para 'programador Python' en 'Bogota'...
+[15:21:59]   -> Desarrollador Backend Python Senior 48484 @
+[15:21:59]      |
+[15:21:59]     https://www.computrabajo.com.co/ofertas-de-trabajo/oferta-de-trabajo-de-desarrollador-backend-python-senior-48484-hibrido-bogota-en-bogota-dc-A417825CF4C7427F61373E686DCF3405#lc=ListOffers-Score4-0
+[15:21:59]   [Browser] Aplicando a: Desarrollador Backend Python Senior 48484 @
+[15:21:59]   [Browser] CV adjuntado
+[15:21:59]   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[15:21:59]   ¿Enviar aplicación a Desarrollador Backend Python Senior 48484? [Enter] Sí  [n] No
+[15:22:12]   >   [Browser] No se encontró botón de confirmación
+[15:22:12]   [DB] [ERR] Registrado: Desarrollador Backend Python Senior 48484 @  -- error
+[15:22:12]   -> Arquitecto de Software IA @
+[15:22:12]      |
+[15:22:12]     https://www.computrabajo.com.co/ofertas-de-trabajo/oferta-de-trabajo-de-arquitecto-de-software-ia-en-bogota-dc-B6274C52445878A161373E686DCF3405#lc=ListOffers-Score0-1
+[15:22:12]   [Browser] Aplicando a: Arquitecto de Software IA @
+[15:22:12]   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[15:22:12]   ¿Enviar aplicación a Arquitecto de Software IA? [Enter] Sí  [n] No
+[15:22:30]   >   [Browser] [OK] Aplicacion enviada!
+[15:22:30]   [DB] [OK] Registrado: Arquitecto de Software IA @  -- applied
+[15:22:30]   -> Ingeniero @
+[15:22:30]      |
+[15:22:30]     https://www.computrabajo.com.co/ofertas-de-trabajo/oferta-de-trabajo-de-ingeniero-telecomunicaciones-electronico-y-afines-en-bogota-dc-EDCAA66438C64D4761373E686DCF3405#lc=ListOffers-Score0-2
+[15:22:30]   [Browser] Aplicando a: Ingeniero @
+[15:22:30]   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[15:22:30]   ¿Enviar aplicación a Ingeniero? [Enter] Sí  [n] No
+[15:23:30]   >   [Browser] [OK] Aplicacion enviada!
+[15:23:30]   [DB] [OK] Registrado: Ingeniero @  -- applied
+[15:23:30]   [Bot] Pausa de descanso (47s)...
+[15:23:30]   -> Controlador de tráfico / Programador de Rutas / Gestor de Operaciones de Transporte @
+[15:23:30]      |
+[15:23:30]     https://www.computrabajo.com.co/ofertas-de-trabajo/oferta-de-trabajo-de-controlador-de-trafico-programador-de-rutas-gestor-de-operaciones-de-transporte-bogota-en-bogota-dc-E2D64B280588437261373E686DCF3405#lc=ListOffers-Score0-3
+[15:23:30]   [Browser] Aplicando a: Controlador de tráfico / Programador de Rutas / Gestor de Operaciones de Transporte @
+[15:23:30]   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[15:23:30]   ¿Enviar aplicación a Controlador de tráfico / Programador de Rutas / Gestor de Operaciones de Transporte? [Enter] Sí  [n] No
+[15:23:52]   >   [Browser] [OK] Aplicacion enviada!
+[15:23:52]   [DB] [OK] Registrado: Controlador de tráfico / Programador de Rutas / Gestor de Operaciones de Transporte @  -- applied
+[15:23:52]   -> Analista III SQL Ing Sistemas, Bogotà @
+[15:23:52]      |
+[15:23:52]     https://www.computrabajo.com.co/ofertas-de-trabajo/oferta-de-trabajo-de-analista-iii-sql-ing-sistemas-bogota-en-bogota-dc-A0535BEBBE9FCFA261373E686DCF3405#lc=ListOffers-Score0-4
+[15:23:52]   [Browser] Aplicando a: Analista III SQL Ing Sistemas, Bogotà @
+[15:23:52]   [Browser] CV adjuntado
+[15:23:52]   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[15:23:52]   ¿Enviar aplicación a Analista III SQL Ing Sistemas, Bogotà? [Enter] Sí  [n] No
+[15:24:23]   >
