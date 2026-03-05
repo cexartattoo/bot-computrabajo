@@ -53,6 +53,15 @@ async def confirm_action(body: ConfirmRequest, user=Depends(get_current_user)):
     )
 
 
+class MissingDataResponse(BaseModel):
+    answer: str
+
+
+@router.post("/respond_missing")
+async def respond_missing(body: MissingDataResponse, user=Depends(get_current_user)):
+    return await bot_manager.respond_missing(answer=body.answer)
+
+
 @router.websocket("/ws")
 async def websocket_logs(ws: WebSocket):
     await ws.accept()

@@ -15,10 +15,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 
 import asyncio
-import sys
-
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Ensure project root is on sys.path so `bot.*` imports work
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -163,8 +159,24 @@ async def generate_report():
     except Exception as e:
         return {"error": str(e)}
 
+# ── Serve compiled frontend (SPA) ─────────────────────────────
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve the React SPA for any non-API route."""
+        # Try to serve the exact file first
+        file_path = FRONTEND_DIST / full_path
+        if full_path and file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        # Otherwise serve index.html (SPA client-side routing)
+        return FileResponse(FRONTEND_DIST / "index.html")
+
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("dashboard.api.main:app", host="0.0.0.0", port=8000, reload=True)
-

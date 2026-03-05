@@ -43,6 +43,7 @@ class BotManager:
         self.ws_clients: set = set()
         self.confirm_queue: asyncio.Queue = asyncio.Queue()
         self.pending_confirmation: Optional[dict] = None
+        self.pending_missing: Optional[dict] = None
         self._reader_thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._project_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -86,11 +87,12 @@ class BotManager:
             logger.warning(f"Could not open log file: {e}")
             self._log_file = None
 
-        # Force UTF-8 to avoid UnicodeEncodeError on Windows (CP1252)
+        # Force UTF-8 and UNBUFFERED output for real-time log streaming
         subprocess_env = {
             **os.environ,
             "PYTHONIOENCODING": "utf-8",
             "PYTHONUTF8": "1",
+            "PYTHONUNBUFFERED": "1",  # Critical: forces stdout flush after every print
         }
 
         try:
@@ -195,20 +197,36 @@ class BotManager:
                                 self._broadcast(_json.dumps(review_data, ensure_ascii=False)),
                                 self._loop
                             )
-                            # Send Telegram notification
+                            # Send Telegram notification with Q&A summary
                             try:
                                 from dashboard.api.services.telegram_bot import telegram_bot
                                 job = review_data.get("job", {})
+                                answers = review_data.get("answers", {})
                                 dashboard_url = os.environ.get("DASHBOARD_URL", "http://localhost:8000")
                                 tg_msg = (
                                     f"Oferta para revision:\n"
                                     f"<b>{job.get('title', '?')}</b>\n"
                                     f"{job.get('company', '')} | {job.get('location', '')}\n\n"
-                                    f"<a href=\"{dashboard_url}/#/review\">Revisar en dashboard</a>\n"
+                                )
+                                if answers:
+                                    tg_msg += "Preguntas y respuestas:\n"
+                                    for idx, (q, a) in enumerate(answers.items(), 1):
+                                        if isinstance(a, dict):
+                                            resp = a.get("answer", a.get("respuesta", "?"))
+                                            conf = a.get("confianza", "?")
+                                        else:
+                                            resp = str(a)
+                                            conf = "?"
+                                        resp_short = str(resp)[:120]
+                                        tg_msg += f"{idx}. {q[:60]}\n   -> {resp_short} (Confianza: {conf})\n"
+                                else:
+                                    tg_msg += "No hay preguntas para responder en esta oferta.\n"
+                                tg_msg += (
+                                    f"\n<a href=\"{dashboard_url}/#/review\">Revisar en dashboard</a>\n"
                                     f"O usa /aprobar | /rechazar | /ver_oferta"
                                 )
                                 asyncio.run_coroutine_threadsafe(
-                                    telegram_bot.send(tg_msg), self._loop
+                                    telegram_bot.send(tg_msg[:4000]), self._loop
                                 )
                             except Exception:
                                 pass
@@ -216,6 +234,42 @@ class BotManager:
                         continue
                     except Exception as e:
                         logger.warning(f"Failed to parse REVIEW_REQUEST: {e}")
+
+                # Intercept [MISSING_DATA] marker for dato faltante flow
+                if "[MISSING_DATA]" in line:
+                    import json as _json
+                    try:
+                        json_str = line.split("[MISSING_DATA]", 1)[1]
+                        missing_data = _json.loads(json_str)
+                        self.pending_missing = missing_data
+
+                        # Broadcast to WebSocket clients
+                        if self._loop and self._loop.is_running():
+                            asyncio.run_coroutine_threadsafe(
+                                self._broadcast(_json.dumps(missing_data, ensure_ascii=False)),
+                                self._loop
+                            )
+                            # Send Telegram notification
+                            try:
+                                from dashboard.api.services.telegram_bot import telegram_bot
+                                dashboard_url = os.environ.get("DASHBOARD_URL", "http://localhost:8000")
+                                tg_msg = (
+                                    f"DATO FALTANTE\n"
+                                    f"Oferta: <b>{missing_data.get('job_title', '?')}</b> | {missing_data.get('company', '')}\n"
+                                    f"Pregunta: <b>{missing_data.get('question', '?')}</b>\n"
+                                    f"Respuesta actual: {missing_data.get('current_answer', 'N/A')}\n"
+                                    f"Confianza: {missing_data.get('confianza', '?')}\n\n"
+                                    f"Responde con /dato [tu respuesta] en los proximos 5 minutos.\n"
+                                    f"<a href=\"{dashboard_url}/#/review\">O responde en el dashboard</a>"
+                                )
+                                asyncio.run_coroutine_threadsafe(
+                                    telegram_bot.send(tg_msg), self._loop
+                                )
+                            except Exception:
+                                pass
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Failed to parse MISSING_DATA: {e}")
 
                 # Detect report generation and broadcast special [REPORT] message
                 if "Informe generado" in line or "[REPORT]" in line:
@@ -329,6 +383,15 @@ class BotManager:
             pass
 
         return {"status": self.status, "message": msg}
+
+    async def respond_missing(self, answer: str) -> dict:
+        """Respond to a missing data request from the bot."""
+        import json as _json
+        resp_file = self._semi_auto_dir / "missing_response.json"
+        resp_file.write_text(_json.dumps({"answer": answer}, ensure_ascii=False), encoding="utf-8")
+        self.pending_missing = None
+        await self._broadcast(f"[SYSTEM] Dato proporcionado: {answer[:80]}")
+        return {"status": "ok", "message": f"Dato enviado: {answer[:80]}"}
 
     async def confirm(self, approved: bool, edited_answers: dict = None, cv: str = None) -> dict:
         """Respond to a semi-auto confirmation request."""

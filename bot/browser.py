@@ -478,11 +478,57 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                 tipo = "legacy"
                 confianza = "media"
 
-            # ── Missing Data: log it (can't use input() from subprocess) ──
-            if "DATO_FALTANTE" in str(ai_answer):
-                print(f"  [WARN] Dato faltante para: '{question_text}' - se dejara vacio")
-                ai_answer = ""
-                tipo = "dato_faltante"
+            # ── Missing Data: pause and request from user ──
+            if "DATO_FALTANTE" in str(ai_answer) or confianza == "baja":
+                import json as _json_missing
+                missing_marker = {
+                    "type": "missing_data",
+                    "question": question_text,
+                    "job_title": job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "current_answer": str(ai_answer),
+                    "confianza": confianza,
+                }
+                print(f"[MISSING_DATA]{_json_missing.dumps(missing_marker, ensure_ascii=False)}")
+                print(f"  [WARN] Dato faltante para: '{question_text}' (confianza: {confianza})")
+                print(f"  [WARN] Esperando respuesta del usuario (max 5 min)...")
+                sys.stdout.flush()
+
+                # Poll for user response via file IPC
+                ipc_dir = Path(__file__).parent.parent / ".semi_auto"
+                ipc_dir.mkdir(exist_ok=True)
+                missing_resp_file = ipc_dir / "missing_response.json"
+                if missing_resp_file.exists():
+                    missing_resp_file.unlink()
+
+                max_wait_missing = 300  # 5 minutes
+                waited_missing = 0
+                user_provided = None
+                while waited_missing < max_wait_missing:
+                    await asyncio.sleep(2)
+                    waited_missing += 2
+                    if waited_missing % 30 == 0:
+                        print(f"  [WARN] Esperando dato... ({waited_missing}s / {max_wait_missing}s)")
+                    if missing_resp_file.exists():
+                        try:
+                            resp = _json_missing.loads(missing_resp_file.read_text(encoding="utf-8"))
+                            user_provided = resp.get("answer", "")
+                            missing_resp_file.unlink()
+                        except Exception:
+                            pass
+                        break
+
+                if user_provided is not None and user_provided.strip():
+                    ai_answer = user_provided
+                    tipo = "usuario_directo"
+                    confianza = "alta"
+                    print(f"  [OK] Usuario proporciono dato: '{ai_answer[:60]}...'")
+                else:
+                    # Timeout or no answer: leave empty, log
+                    if "DATO_FALTANTE" in str(ai_answer):
+                        ai_answer = ""
+                    print(f"  [WARN] Sin respuesta del usuario. Continuando sin dato para: '{question_text}'")
+                    tipo = "dato_faltante"
 
             # Store enriched answer
             answers[question_text] = {

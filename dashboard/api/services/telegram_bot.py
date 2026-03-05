@@ -203,10 +203,18 @@ class TelegramBot:
                 "/informes - Listar informes\n"
                 "/ultimo_informe - Enviar ultimo\n\n"
                 "<b>Otros:</b>\n"
+                "/dato - Responder dato faltante\n"
                 "/ui - Link al dashboard\n"
                 "/logs - Ultimas lineas del log\n"
                 "/ayuda - Esta ayuda"
             )
+
+        elif cmd == "/dato":
+            if text:
+                result = await bm.respond_missing(answer=text)
+                await self.send(f"Dato enviado: {text[:100]}")
+            else:
+                await self.send("Uso: /dato [tu respuesta]\nEjemplo: /dato 15 de marzo de 2020")
 
         else:
             await self.send(f"Comando no reconocido: {cmd}\nUsa /ayuda para ver comandos.")
