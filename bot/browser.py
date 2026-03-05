@@ -1,10 +1,9 @@
-"""
-Browser Automation — Playwright-based interactions with Computrabajo
-"""
 import asyncio
 import random
+import math
 import time
 from pathlib import Path
+from datetime import datetime
 
 from playwright.async_api import async_playwright, Page, Browser, Playwright, BrowserContext, TimeoutError
 
@@ -17,15 +16,59 @@ from bot.job_tracker import log_application, already_applied
 from bot.persistent_knowledge import save_persistent_knowledge
 
 BASE_URL = "https://www.computrabajo.com.co"
-LOGIN_URL = f"{BASE_URL}/" # Computrabajo redirect changed, so we just use the homepage
+LOGIN_URL = f"{BASE_URL}/"
 SEARCH_URL = f"{BASE_URL}/empleos-en"
 
+ERRORS_DIR = Path(__file__).parent / "errors"
+ERRORS_DIR.mkdir(exist_ok=True)
+
+# --- Anti-detection utilities ---
 
 async def human_delay(min_s: float = None, max_s: float = None):
-    """Random delay to simulate human behavior."""
+    """Gaussian delay centered between min and max, simulating human behavior."""
     lo = min_s or DELAY_MIN_SECONDS
     hi = max_s or DELAY_MAX_SECONDS
-    await asyncio.sleep(random.uniform(lo, hi))
+    center = (lo + hi) / 2
+    std_dev = (hi - lo) / 4  # 95% of values fall within [lo, hi]
+    delay = max(lo * 0.5, random.gauss(center, std_dev))
+    await asyncio.sleep(delay)
+
+
+async def reading_pause(text: str):
+    """Pause proportional to text length, simulating reading time."""
+    words = len(text.split())
+    # Average human reads 200-250 wpm; we simulate 300-500 wpm (skimming)
+    read_time = words / random.uniform(300, 500) * 60
+    read_time = max(0.5, min(read_time, 8))  # clamp between 0.5s and 8s
+    await asyncio.sleep(read_time)
+
+
+async def natural_scroll(page: Page, pixels: int = 600):
+    """Scroll gradually with variable speed, like a human."""
+    scrolled = 0
+    while scrolled < pixels:
+        chunk = random.randint(40, 120)
+        await page.mouse.wheel(0, chunk)
+        scrolled += chunk
+        await asyncio.sleep(random.uniform(0.05, 0.15))
+
+
+async def rest_break():
+    """Long pause (30-90s) to simulate a human taking a break."""
+    duration = random.uniform(30, 90)
+    print(f"  [Bot] Pausa de descanso ({int(duration)}s)...")
+    await asyncio.sleep(duration)
+
+
+async def screenshot_on_error(page: Page, context: str = "error"):
+    """Capture screenshot when an error occurs for debugging."""
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = ERRORS_DIR / f"{context}_{ts}.png"
+        await page.screenshot(path=str(path))
+        print(f"  [Browser] Screenshot guardado: {path.name}")
+    except Exception:
+        pass
 
 
 async def launch_browser(playwright: Playwright) -> tuple[BrowserContext, Page]:
@@ -212,6 +255,71 @@ async def search_jobs(page: Page, keyword: str, location: str = "Bogotá") -> li
     return jobs
 
 
+async def search_jobs_paginated(page: Page, keyword: str, location: str = "Bogota", max_pages: int = 3) -> list[dict]:
+    """Search jobs across multiple pages of results."""
+    all_jobs = []
+    first_page_jobs = await search_jobs(page, keyword, location)
+    all_jobs.extend(first_page_jobs)
+
+    if not first_page_jobs:
+        return all_jobs
+
+    for page_num in range(2, max_pages + 1):
+        try:
+            # Look for "Siguiente" pagination link
+            next_btn = page.locator(
+                "a:has-text('Siguiente'), a:has-text('siguiente'), "
+                "a.pagination-next, li.next a, a[rel='next']"
+            )
+            if await next_btn.count() == 0:
+                break
+            await next_btn.first.click()
+            await human_delay(2, 4)
+
+            # Wait for results to load
+            try:
+                await page.wait_for_selector(
+                    "article.box_offer, div.box_offer, .offerList-item",
+                    timeout=10000
+                )
+            except TimeoutError:
+                break
+
+            page_jobs = []
+            cards = page.locator("article.box_offer, div.box_offer, .offerList-item")
+            count = await cards.count()
+            print(f"  [Browser] Pagina {page_num}: {count} ofertas")
+
+            for i in range(min(count, 25)):
+                card = cards.nth(i)
+                try:
+                    title_el = card.locator("h2 a, h3 a, .title-offer a, a.js-o-link")
+                    title = (await title_el.first.inner_text()).strip() if await title_el.count() > 0 else "Sin titulo"
+                    url = await title_el.first.get_attribute("href") if await title_el.count() > 0 else ""
+                    if url and not url.startswith("http"):
+                        url = BASE_URL + url
+                    company_el = card.locator(".company, .companyName, .box_company")
+                    company = (await company_el.first.inner_text()).strip() if await company_el.count() > 0 else ""
+                    loc_el = card.locator(".location, .city, .box_location")
+                    loc = (await loc_el.first.inner_text()).strip() if await loc_el.count() > 0 else ""
+                    salary_el = card.locator(".salary, .box_salary, .js-salary")
+                    salary = (await salary_el.first.inner_text()).strip() if await salary_el.count() > 0 else ""
+                    if url:
+                        page_jobs.append({"title": title, "company": company, "url": url, "location": loc, "salary": salary})
+                except Exception:
+                    continue
+
+            all_jobs.extend(page_jobs)
+            if not page_jobs:
+                break
+            await human_delay(1, 3)
+        except Exception as e:
+            print(f"  [Browser] Error en paginacion pagina {page_num}: {e}")
+            break
+
+    return all_jobs
+
+
 async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool, dict]:
     """
     Navigate to job URL and attempt to apply.
@@ -229,6 +337,10 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
     print(f"  [Browser] {'[DRY-RUN-LLM] ' if mode == 'dry-run-llm' else ''}Aplicando a: {job['title']} @ {job['company']}")
     await page.goto(job["url"], wait_until="domcontentloaded")
     await human_delay(2, 4)
+
+    # Natural scroll through the job description before interacting
+    await natural_scroll(page, random.randint(300, 800))
+    await reading_pause(job.get("title", "") + " " + job.get("company", ""))
 
     answers = {}
 
@@ -451,4 +563,5 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
 
     except Exception as e:
         print(f"  [Browser] Error aplicando: {e}")
+        await screenshot_on_error(page, f"apply_{job.get('company', 'unknown')}")
         return False, answers

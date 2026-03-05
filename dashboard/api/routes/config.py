@@ -121,3 +121,58 @@ def _update_env(key: str, value: str):
         new_lines.append(f"{key}={value}")
     env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
 
+
+# ── Blacklist ────────────────────────────────────────────────
+
+@router.get("/blacklist")
+async def get_blacklist(user=Depends(get_current_user)):
+    config = _get_config_module()
+    return {"blacklist": getattr(config, "BLACKLISTED_COMPANIES", [])}
+
+
+class BlacklistUpdate(BaseModel):
+    blacklist: list[str]
+
+
+@router.put("/blacklist")
+async def update_blacklist(body: BlacklistUpdate, user=Depends(get_current_user)):
+    config = _get_config_module()
+    config.BLACKLISTED_COMPANIES = [b.strip() for b in body.blacklist if b.strip()]
+    _update_env("BLACKLISTED_COMPANIES", ",".join(config.BLACKLISTED_COMPANIES))
+    return {"saved": True, "blacklist": config.BLACKLISTED_COMPANIES}
+
+
+# ── Notifications ────────────────────────────────────────────
+import json
+
+NOTIF_FILE = PROJECT_ROOT / "notification_prefs.json"
+
+
+def _load_notif_prefs():
+    if NOTIF_FILE.exists():
+        try:
+            return json.loads(NOTIF_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"telegram_enabled": False, "browser_enabled": False}
+
+
+def _save_notif_prefs(prefs):
+    NOTIF_FILE.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+
+
+@router.get("/notifications")
+async def get_notifications(user=Depends(get_current_user)):
+    return _load_notif_prefs()
+
+
+class NotificationsUpdate(BaseModel):
+    telegram_enabled: bool = False
+    browser_enabled: bool = False
+
+
+@router.put("/notifications")
+async def update_notifications(body: NotificationsUpdate, user=Depends(get_current_user)):
+    prefs = {"telegram_enabled": body.telegram_enabled, "browser_enabled": body.browser_enabled}
+    _save_notif_prefs(prefs)
+    return prefs

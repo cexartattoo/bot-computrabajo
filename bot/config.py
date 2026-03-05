@@ -43,6 +43,10 @@ SEARCH_LOCATION  = SEARCH_LOCATIONS[0] if SEARCH_LOCATIONS else "Bogota"  # back
 SEARCH_REMOTE    = "teletrabajo" in [l.lower() for l in SEARCH_LOCATIONS]  # derived from list
 MIN_SALARY       = 0           # Filtrar por salario minimo (0 = sin filtro)
 
+# ─── Blacklist ───────────────────────────────────────
+# Companies or title keywords to skip (comma-separated in .env)
+BLACKLISTED_COMPANIES = [b.strip() for b in os.getenv("BLACKLISTED_COMPANIES", "").split(",") if b.strip()]
+
 # ─── Bot Behavior ────────────────────────────────────
 MAX_APPLICATIONS_PER_RUN = 10  # Límite de aplicaciones por sesión
 DELAY_MIN_SECONDS = 3          # Delay mínimo entre acciones (anti-bot)

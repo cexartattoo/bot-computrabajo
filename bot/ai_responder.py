@@ -509,7 +509,49 @@ def _answer_with_gemini_batch(
             except Exception as e:
                 err = str(e)
                 if any(x in err for x in ["403", "429", "quota", "RESOURCE_EXHAUSTED", "leaked"]):
-                    continue
+                    # Retry with exponential backoff for rate limits
+                    import time as _time
+                    for attempt in range(3):
+                        wait = 2 ** attempt  # 1s, 2s, 4s
+                        print(f"  [AI] Rate limit ({model_name}, key #{idx+1}). Reintentando en {wait}s... (intento {attempt+1}/3)")
+                        _time.sleep(wait)
+                        try:
+                            genai.configure(api_key=api_key)
+                            model = genai.GenerativeModel(model_name)
+                            response = model.generate_content(
+                                prompt,
+                                generation_config={"temperature": 0.35, "max_output_tokens": 2000},
+                            )
+                            text = response.text.strip()
+                            if text:
+                                parsed = _parse_json_response(text, valid_questions)
+                                if parsed is not None:
+                                    if isinstance(parsed, list):
+                                        result = {}
+                                        for item in parsed:
+                                            pregunta = item.get("pregunta", "").strip()
+                                            if pregunta:
+                                                result[pregunta] = {
+                                                    "respuesta": item.get("respuesta", ""),
+                                                    "tipo": item.get("tipo", "narrativa"),
+                                                    "confianza": item.get("confianza", "media"),
+                                                }
+                                        if result:
+                                            print(f"  [AI] [OK] Retry exitoso: {len(result)} respuestas con {model_name}")
+                                            return result, model_name
+                                    elif isinstance(parsed, dict):
+                                        result = {}
+                                        for q_text, answer_text in parsed.items():
+                                            result[q_text] = {
+                                                "respuesta": str(answer_text),
+                                                "tipo": "narrativa",
+                                                "confianza": "media",
+                                            }
+                                        if result:
+                                            return result, model_name
+                        except Exception:
+                            continue
+                    continue  # All retries failed, try next key
                 elif any(x in err.lower() for x in ["not found", "not supported"]):
                     print(f"  [AI] [X] Modelo {model_name} no disponible. Probando siguiente...")
                     break

@@ -2,11 +2,14 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import History from './pages/History'
 import Results from './pages/Results'
+import Review from './pages/Review'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
+import ThemeToggle from './components/ThemeToggle'
 
 const NAV = [
     { path: '/', label: 'Panel', el: <Dashboard /> },
+    { path: '/review', label: 'Revision', el: <Review /> },
     { path: '/results', label: 'Resultados', el: <Results /> },
     { path: '/history', label: 'Historial', el: <History /> },
     { path: '/profile', label: 'Perfil', el: <Profile /> },
@@ -16,14 +19,14 @@ const NAV = [
 export default function App() {
     return (
         <BrowserRouter>
-            <div className="min-h-screen flex flex-col">
+            <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
                 {/* Top nav */}
-                <nav className="bg-[#1e293b] border-b border-[#334155] sticky top-0 z-50">
+                <nav style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }} className="sticky top-0 z-50">
                     <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
                         <span className="text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
                             Cesar Bot
                         </span>
-                        <div className="flex gap-1">
+                        <div className="flex items-center gap-1">
                             {NAV.map(n => (
                                 <NavLink
                                     key={n.path}
@@ -31,14 +34,21 @@ export default function App() {
                                     end={n.path === '/'}
                                     className={({ isActive }) =>
                                         `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
-                                            ? 'bg-blue-600/20 text-blue-400'
-                                            : 'text-slate-400 hover:text-slate-200 hover:bg-[#334155]'
+                                            ? 'text-blue-400'
+                                            : 'hover:text-slate-200'
                                         }`
                                     }
+                                    style={({ isActive }) => ({
+                                        backgroundColor: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+                                        color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                                    })}
                                 >
                                     {n.label}
                                 </NavLink>
                             ))}
+                            <div className="ml-2 border-l pl-2" style={{ borderColor: 'var(--border)' }}>
+                                <ThemeToggle />
+                            </div>
                         </div>
                     </div>
                 </nav>

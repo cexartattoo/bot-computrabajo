@@ -18,6 +18,7 @@ Requirements:
 
 import asyncio
 import sys
+import random
 import argparse
 import logging
 from datetime import datetime
@@ -70,13 +71,12 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
     from playwright.async_api import async_playwright
     from bot.config import (
         CT_EMAIL, CT_PASSWORD, SEARCH_KEYWORDS,
-        SEARCH_LOCATION, SEARCH_REMOTE, MAX_APPLICATIONS_PER_RUN,
+        SEARCH_LOCATIONS, MAX_APPLICATIONS_PER_RUN,
         CV_PATH, get_cv_path
     )
-    from bot.browser import launch_browser, login, search_jobs, apply_to_job, human_delay
-    from bot.job_tracker import (
-        init_db, already_applied, already_skipped,
-        log_application, log_skip
+    from bot.browser import (
+        launch_browser, login, search_jobs_paginated,
+        apply_to_job, human_delay, rest_break
     )
 
     # Check credentials
@@ -90,26 +90,44 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
 
     init_db()
     limit = max_apps or MAX_APPLICATIONS_PER_RUN
-    keywords = [specific_keyword] if specific_keyword else SEARCH_KEYWORDS
+    keywords = [specific_keyword] if specific_keyword else list(SEARCH_KEYWORDS)
+
+    # Randomize keyword order each session (anti-pattern detection)
+    if not specific_keyword:
+        random.shuffle(keywords)
 
     # Resolve CV path
     active_cv = get_cv_path(cv_profile) if cv_profile else CV_PATH
+
+    # Load blacklist from config
+    try:
+        from bot.config import BLACKLISTED_COMPANIES
+        blacklist = [b.lower().strip() for b in BLACKLISTED_COMPANIES]
+    except (ImportError, AttributeError):
+        blacklist = []
 
     # Mode labels
     mode_labels = {
         "apply": "MODO ACTIVO",
         "dry-run-llm": "DRY-RUN LLM (sin enviar)",
-        "semi-auto": "SEMI-AUTO (revisión humana)",
+        "semi-auto": "SEMI-AUTO (revision humana)",
     }
 
     print("\n" + "=" * 60)
-    print(f"  COMPUTRABAJO BOT  —  {mode_labels.get(mode, mode.upper())}")
+    print(f"  COMPUTRABAJO BOT  --  {mode_labels.get(mode, mode.upper())}")
     print(f"  Keywords: {keywords}")
-    print(f"  Límite por sesión: {limit} aplicaciones")
+    print(f"  Ubicaciones: {SEARCH_LOCATIONS}")
+    print(f"  Limite por sesion: {limit} aplicaciones")
     print(f"  CV: {active_cv.name}")
+    if blacklist:
+        print(f"  Blacklist: {blacklist}")
     print("=" * 60)
 
     applied_count = 0
+    consecutive_errors = 0
+    rest_counter = 0
+    # How many apps between rest breaks (randomized per session)
+    rest_interval = random.randint(3, 5)
 
     try:
         async with async_playwright() as playwright:
@@ -118,89 +136,109 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
             # Login
             logged_in = await login(page)
             if not logged_in:
-                print("\n[ERROR] No se pudo iniciar sesión. Verifica tus credenciales.")
+                print("\n[ERROR] No se pudo iniciar sesion. Verifica tus credenciales.")
                 await browser.close()
                 return
 
-            # Process each keyword
+            # Process each keyword across all locations
             for keyword in keywords:
                 if applied_count >= limit:
-                    print(f"\n  Límite de {limit} aplicaciones alcanzado.")
+                    print(f"\n  Limite de {limit} aplicaciones alcanzado.")
                     break
 
-                jobs = await search_jobs(page, keyword, SEARCH_LOCATION)
-
-                # Also search remote if configured
-                if SEARCH_REMOTE:
-                    remote_jobs = await search_jobs(page, keyword, "teletrabajo")
-                    jobs.extend(remote_jobs)
-
-                print(f"\n  Procesando {len(jobs)} ofertas para '{keyword}'...")
-
-                for job in jobs:
+                for location in SEARCH_LOCATIONS:
                     if applied_count >= limit:
                         break
 
-                    url = job.get("url", "")
-                    if not url:
-                        continue
+                    jobs = await search_jobs_paginated(page, keyword, location, max_pages=2)
 
-                    # In dry-run-llm mode, don't skip already-applied jobs
-                    # (we want to test the LLM on them too)
-                    if mode != "dry-run-llm":
-                        if already_applied(url):
-                            print(f"  [SKIP] Ya aplicado: {job['title']}")
+                    print(f"\n  Procesando {len(jobs)} ofertas para '{keyword}' en '{location}'...")
+
+                    for job in jobs:
+                        if applied_count >= limit:
+                            break
+
+                        # Auto-pause after 3 consecutive errors
+                        if consecutive_errors >= 3:
+                            print("\n  [!] 3 errores consecutivos. Pausando 60s...")
+                            await asyncio.sleep(60)
+                            consecutive_errors = 0
+
+                        url = job.get("url", "")
+                        if not url:
                             continue
-                        if already_skipped(url):
+
+                        # Blacklist filter
+                        company_lower = job.get("company", "").lower()
+                        title_lower = job.get("title", "").lower()
+                        if any(b in company_lower or b in title_lower for b in blacklist):
+                            print(f"  [SKIP] Blacklisted: {job['title']} @ {job['company']}")
                             continue
 
-                    print(f"\n  -> {job['title']} @ {job['company']}")
-                    print(f"    {job['location']} | {job['salary']}")
-                    print(f"    {url}")
+                        # In dry-run-llm mode, don't skip already-applied jobs
+                        if mode != "dry-run-llm":
+                            if already_applied(url):
+                                print(f"  [SKIP] Ya aplicado: {job['title']}")
+                                continue
+                            if already_skipped(url):
+                                continue
 
-                    # Apply (mode-aware)
-                    success, answers = await apply_to_job(page, job, mode=mode)
+                        print(f"\n  -> {job['title']} @ {job['company']}")
+                        print(f"    {job['location']} | {job['salary']}")
+                        print(f"    {url}")
 
-                    if mode == "dry-run-llm":
-                        # Save dry-run results without marking as "applied"
-                        log_application(
-                            job_title=job["title"],
-                            company=job["company"],
-                            url=url,
-                            location=job.get("location", ""),
-                            salary=job.get("salary", ""),
-                            answers=answers,
-                            status="dry-run",
-                            mode=mode,
-                            cv_used=active_cv.name,
-                        )
-                        applied_count += 1
-                    elif success:
-                        log_application(
-                            job_title=job["title"],
-                            company=job["company"],
-                            url=url,
-                            location=job.get("location", ""),
-                            salary=job.get("salary", ""),
-                            answers=answers,
-                            status="applied",
-                            mode=mode,
-                            cv_used=active_cv.name,
-                        )
-                        applied_count += 1
-                    else:
-                        log_application(
-                            job_title=job["title"],
-                            company=job["company"],
-                            url=url,
-                            status="error",
-                            mode=mode,
-                            cv_used=active_cv.name,
-                            notes="Falló la aplicación automática"
-                        )
-                        log_skip(url, "error")
+                        # Apply (mode-aware)
+                        success, answers = await apply_to_job(page, job, mode=mode)
 
-                    await human_delay()
+                        if mode == "dry-run-llm":
+                            log_application(
+                                job_title=job["title"],
+                                company=job["company"],
+                                url=url,
+                                location=job.get("location", ""),
+                                salary=job.get("salary", ""),
+                                answers=answers,
+                                status="dry-run",
+                                mode=mode,
+                                cv_used=active_cv.name,
+                            )
+                            applied_count += 1
+                            consecutive_errors = 0
+                        elif success:
+                            log_application(
+                                job_title=job["title"],
+                                company=job["company"],
+                                url=url,
+                                location=job.get("location", ""),
+                                salary=job.get("salary", ""),
+                                answers=answers,
+                                status="applied",
+                                mode=mode,
+                                cv_used=active_cv.name,
+                            )
+                            applied_count += 1
+                            consecutive_errors = 0
+                        else:
+                            log_application(
+                                job_title=job["title"],
+                                company=job["company"],
+                                url=url,
+                                status="error",
+                                mode=mode,
+                                cv_used=active_cv.name,
+                                notes="Fallo la aplicacion automatica"
+                            )
+                            log_skip(url, "error")
+                            consecutive_errors += 1
+
+                        # Rest break every N applications
+                        rest_counter += 1
+                        if rest_counter >= rest_interval:
+                            await rest_break()
+                            rest_counter = 0
+                            rest_interval = random.randint(3, 5)
+                        else:
+                            await human_delay()
 
     except asyncio.CancelledError:
         print("\n  [!] Ejecución cancelada (tareas asíncronas).")
