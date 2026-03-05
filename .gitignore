@@ -12,3 +12,8 @@ bot/informe_*.html
 debug_page.html
 test_page*.html
 playwright_data/
+.semi_auto/
+bot/errors/
+logs/
+client_secret*
+notification_prefs.json

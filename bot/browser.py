@@ -461,56 +461,11 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                 tipo = "legacy"
                 confianza = "media"
 
-            # ── Missing Data: ask user and save forever ─────
+            # ── Missing Data: log it (can't use input() from subprocess) ──
             if "DATO_FALTANTE" in str(ai_answer):
-                print(f"\\n  [!] Faltan datos para responder: '{question_text}'")
-                print("      Por favor, escribe la respuesta para guardarla y usarla en el futuro:")
-                try:
-                    loop = asyncio.get_event_loop()
-                    user_input = await loop.run_in_executor(None, input, "      > ")
-                    user_input = user_input.strip()
-                except BaseException:
-                    user_input = ""
-                
-                if user_input:
-                    ai_answer = user_input
-                    tipo = "dato_aprendido"
-                    confianza = "alta"
-                    # Save to persistent knowledge to avoid asking again
-                    await loop.run_in_executor(None, save_persistent_knowledge, {question_text: user_input})
-                else:
-                    # User skipped
-                    ai_answer = ""
-                    tipo = "omitida"
-
-            # ── Semi-auto: show answer and let user edit ────
-            if mode == "semi-auto":
-                conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"}.get(confianza, "[?]")
-                print(f"\n  [{i+1}/{q_count}] {question_text}")
-                print(f"        Tipo: {tipo} | Confianza: {conf_icon} {confianza}")
-                print(f"        Respuesta: \"{ai_answer}\"")
-                print(f"        [Enter] Aprobar  [e] Editar  [s] Saltar")
-                try:
-                    user_input = input("        > ").strip().lower()
-                except EOFError:
-                    user_input = ""
-                if user_input == "e":
-                    new_answer = input("        Nueva respuesta: ").strip()
-                    if new_answer:
-                        ai_answer = new_answer
-                        tipo = "editada_manual"
-                        confianza = "alta"
-                elif user_input == "s":
-                    print("        -> Pregunta saltada.")
-                    continue
-
-            # ── Fill the input (skip in dry-run-llm) ────────
-            if mode != "dry-run-llm":
-                try:
-                    await inp.fill(str(ai_answer))
-                    await human_delay(0.5, 1.5)
-                except Exception as e:
-                    print(f"    [!] Error llenando input: {e}")
+                print(f"  [WARN] Dato faltante para: '{question_text}' - se dejara vacio")
+                ai_answer = ""
+                tipo = "dato_faltante"
 
             # Store enriched answer
             answers[question_text] = {
@@ -527,25 +482,129 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             print(f"  [DRY-RUN-LLM] Respuestas recopiladas sin enviar formulario.")
             return True, answers
 
-        # ── Upload CV if file input is present ──────────────
-        if CV_PATH.exists():
-            file_input = page.locator("input[type='file']")
-            if await file_input.count() > 0:
-                await file_input.first.set_input_files(str(CV_PATH))
-                await human_delay(1, 2)
-                print("  [Browser] CV adjuntado")
+        # ── Semi-auto: send review request via file protocol ──
+        if mode == "semi-auto" and answers:
+            import json as _json
 
-        # ── Semi-auto: final confirmation before submit ─────
-        if mode == "semi-auto":
-            print(f"\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print(f"  ¿Enviar aplicación a {job['title']}? [Enter] Sí  [n] No")
+            # Extract job description from the page
+            desc_text = ""
             try:
-                confirm = input("  > ").strip().lower()
-            except EOFError:
-                confirm = ""
-            if confirm == "n":
-                print("  -> Aplicacion cancelada por el usuario.")
+                desc_el = page.locator(".job_info_content, .cm-info, .box_detail, .job-description, article")
+                if await desc_el.count() > 0:
+                    desc_text = (await desc_el.first.inner_text()).strip()[:3000]
+            except Exception:
+                pass
+
+            review_data = {
+                "type": "review_request",
+                "job": {
+                    "title": job.get("title", ""),
+                    "company": job.get("company", ""),
+                    "location": job.get("location", ""),
+                    "salary": job.get("salary", ""),
+                    "url": job.get("url", ""),
+                    "description": desc_text,
+                },
+                "answers": answers,
+            }
+
+            # Write request file and print JSON marker for bot_runner to intercept
+            ipc_dir = Path(__file__).parent.parent / ".semi_auto"
+            ipc_dir.mkdir(exist_ok=True)
+            req_file = ipc_dir / "request.json"
+            res_file = ipc_dir / "response.json"
+
+            # Clean any previous response
+            if res_file.exists():
+                res_file.unlink()
+
+            req_file.write_text(_json.dumps(review_data, ensure_ascii=False, indent=2), encoding="utf-8")
+            # Print the JSON marker so bot_runner broadcasts it to WebSocket clients
+            print(f"[REVIEW_REQUEST]{_json.dumps(review_data, ensure_ascii=False)}")
+            print("  [SEMI-AUTO] Esperando revision del usuario en el dashboard...")
+
+            # Poll for response (check every 2 seconds, timeout 10 minutes)
+            max_wait = 600
+            waited = 0
+            user_response = None
+            while waited < max_wait:
+                await asyncio.sleep(2)
+                waited += 2
+                if res_file.exists():
+                    try:
+                        user_response = _json.loads(res_file.read_text(encoding="utf-8"))
+                        res_file.unlink()
+                    except Exception:
+                        pass
+                    break
+
+            if user_response is None:
+                print("  [SEMI-AUTO] Timeout esperando respuesta. Saltando oferta.")
                 return False, answers
+
+            if not user_response.get("approved", False):
+                print("  [SEMI-AUTO] Aplicacion rechazada por el usuario.")
+                return False, answers
+
+            # Apply user edits
+            edited = user_response.get("edited_answers", {})
+            selected_cv = user_response.get("cv", None)
+
+            for q_text, new_answer in edited.items():
+                if q_text in answers:
+                    old = answers[q_text].get("answer", "")
+                    if new_answer != old:
+                        answers[q_text]["answer"] = new_answer
+                        answers[q_text]["tipo"] = "editada_usuario"
+                        answers[q_text]["confianza"] = "alta"
+
+            # Fill form fields with (possibly edited) answers
+            for i in range(q_count):
+                inp = question_inputs.nth(i)
+                q_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
+                if q_text in answers:
+                    try:
+                        await inp.fill(str(answers[q_text].get("answer", "")))
+                        await human_delay(0.3, 0.8)
+                    except Exception as e:
+                        print(f"    [!] Error llenando input: {e}")
+
+            print(f"  [SEMI-AUTO] Respuestas aplicadas ({len(edited)} editadas).")
+
+            # Use selected CV or default
+            cv_to_use = CV_PATH
+            if selected_cv:
+                from bot.config import get_cv_path
+                alt_cv = get_cv_path(selected_cv)
+                if alt_cv and alt_cv.exists():
+                    cv_to_use = alt_cv
+
+            # Upload CV
+            if cv_to_use.exists():
+                file_input = page.locator("input[type='file']")
+                if await file_input.count() > 0:
+                    await file_input.first.set_input_files(str(cv_to_use))
+                    await human_delay(1, 2)
+                    print(f"  [Browser] CV adjuntado: {cv_to_use.name}")
+        else:
+            # Non-semi-auto modes: fill normally
+            for i in range(q_count):
+                inp = question_inputs.nth(i)
+                q_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
+                if q_text in answers and mode != "dry-run-llm":
+                    try:
+                        await inp.fill(str(answers[q_text].get("answer", "")))
+                        await human_delay(0.5, 1.5)
+                    except Exception as e:
+                        print(f"    [!] Error llenando input: {e}")
+
+            # Upload CV for non-semi-auto
+            if mode != "dry-run-llm" and CV_PATH.exists():
+                file_input = page.locator("input[type='file']")
+                if await file_input.count() > 0:
+                    await file_input.first.set_input_files(str(CV_PATH))
+                    await human_delay(1, 2)
+                    print("  [Browser] CV adjuntado")
 
         # ── Submit application ──────────────────────────────
         submit_btn = page.locator(

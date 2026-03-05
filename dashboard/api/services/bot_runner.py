@@ -49,6 +49,8 @@ class BotManager:
         self._log_file = None
         self._logs_dir = self._project_root / "logs"
         self._logs_dir.mkdir(exist_ok=True)
+        self._semi_auto_dir = self._project_root / ".semi_auto"
+        self._semi_auto_dir.mkdir(exist_ok=True)
 
     async def start(self, mode: str = "apply", max_apps: int = None,
                     keyword: str = None, cv: str = None) -> dict:
@@ -175,6 +177,30 @@ class BotManager:
                         "timestamp": datetime.now().isoformat()
                     }
 
+                # Intercept [REVIEW_REQUEST] JSON marker from semi-auto mode
+                if "[REVIEW_REQUEST]" in line:
+                    import json as _json
+                    try:
+                        json_str = line.split("[REVIEW_REQUEST]", 1)[1]
+                        # Remove the timestamp prefix if present
+                        review_data = _json.loads(json_str)
+                        self.status = BotStatus.PAUSED
+                        self.pending_confirmation = {
+                            "type": "review_request",
+                            "data": review_data,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        # Broadcast structured JSON to WebSocket clients
+                        if self._loop and self._loop.is_running():
+                            asyncio.run_coroutine_threadsafe(
+                                self._broadcast(_json.dumps(review_data, ensure_ascii=False)),
+                                self._loop
+                            )
+                        # Don't broadcast the raw line (it's huge JSON)
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Failed to parse REVIEW_REQUEST: {e}")
+
                 # Detect report generation and broadcast special [REPORT] message
                 if "Informe generado" in line or "[REPORT]" in line:
                     import re
@@ -288,12 +314,24 @@ class BotManager:
 
         return {"status": self.status, "message": msg}
 
-    async def confirm(self, approved: bool) -> dict:
+    async def confirm(self, approved: bool, edited_answers: dict = None, cv: str = None) -> dict:
         """Respond to a semi-auto confirmation request."""
         if self.pending_confirmation is None:
             return {"error": "No hay confirmacion pendiente"}
 
-        await self.confirm_queue.put(approved)
+        # Write response file for bot subprocess to read
+        import json as _json
+        response_file = self._semi_auto_dir / "response.json"
+        response_data = {
+            "approved": approved,
+            "edited_answers": edited_answers or {},
+            "cv": cv,
+        }
+        response_file.write_text(
+            _json.dumps(response_data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+
         action = "aprobada" if approved else "rechazada"
         await self._broadcast(f"[SYSTEM] Aplicacion {action} por el usuario")
         self.pending_confirmation = None

@@ -40,11 +40,17 @@ async def bot_status(user=Depends(get_current_user)):
 
 class ConfirmRequest(BaseModel):
     approved: bool
+    edited_answers: Optional[dict] = None
+    cv: Optional[str] = None
 
 
 @router.post("/confirm")
 async def confirm_action(body: ConfirmRequest, user=Depends(get_current_user)):
-    return await bot_manager.confirm(body.approved)
+    return await bot_manager.confirm(
+        approved=body.approved,
+        edited_answers=body.edited_answers,
+        cv=body.cv,
+    )
 
 
 @router.websocket("/ws")
