@@ -41,8 +41,8 @@ class BotManager:
     async def start(self, mode: str = "apply", max_apps: int = None,
                     keyword: str = None, cv: str = None) -> dict:
         """Launch the bot as a subprocess."""
-        if self.status == BotStatus.RUNNING:
-            return {"error": "Bot ya está corriendo", "status": self.status}
+        if self.status in (BotStatus.RUNNING, BotStatus.PAUSED, BotStatus.STOPPING):
+            return {"error": "Bot ya está corriendo o pausado", "status": self.status}
 
         cmd = [sys.executable, "-m", "bot.bot", "--mode", mode]
         if max_apps:

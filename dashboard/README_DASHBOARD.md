@@ -26,6 +26,7 @@ npm run dev
 ```
 
 **URLs:**
+
 - Frontend: http://localhost:5173
 - API: http://localhost:8000/docs (Swagger UI)
 
