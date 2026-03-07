@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useBot } from '../context/BotContext'
 
 const API = '/api'
@@ -340,7 +340,14 @@ function getSavedSize() {
 }
 
 export default function BotStream() {
-    const { status, aiProcessing } = useBot()
+    const { status, aiProcessing, logs } = useBot()
+
+    // Check if the script has actually reached the 'ready/browsing' log phase
+    const isBrowserReady = useMemo(() => {
+        if (status?.apps_this_session > 0) return true
+        return logs.some(l => l.includes('[Browser]'))
+    }, [status?.apps_this_session, logs])
+
     const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 80 })
     const [isDragging, setIsDragging] = useState(false)
     const [viewMode, setViewMode] = useState('normal') // 'minimized' | 'normal' | 'expanded'
@@ -637,7 +644,7 @@ export default function BotStream() {
                         overflow: 'hidden',
                     }}>
                         {/* Main content: stream or SVG state */}
-                        {isRunning && currentSrc ? (
+                        {isRunning && currentSrc && isBrowserReady ? (
                             <img
                                 src={currentSrc}
                                 alt="Bot screen stream"

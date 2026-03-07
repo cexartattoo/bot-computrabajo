@@ -84,6 +84,14 @@ class BotManager:
             except Exception:
                 pass
 
+        # Clear stale screenshot from previous session
+        screen_file = self._semi_auto_dir / "screen.jpg"
+        if screen_file.exists():
+            try:
+                screen_file.unlink()
+            except Exception:
+                pass
+
         # Open log file for this session
         log_filename = f"bot_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
         try:
