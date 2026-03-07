@@ -8,6 +8,7 @@ export function BotProvider({ children }) {
     const [logs, setLogs] = useState([])
     const [reviewQueue, setReviewQueue] = useState([])
     const [reportUrl, setReportUrl] = useState(null)
+    const [aiProcessing, setAiProcessing] = useState(false)
     const wsRef = useRef(null)
 
     // Poll bot status
@@ -23,6 +24,13 @@ export function BotProvider({ children }) {
         return () => clearInterval(interval)
     }, [])
 
+    // Clear AI processing on bot stop/pause
+    useEffect(() => {
+        if (status.status !== 'running') {
+            setAiProcessing(false)
+        }
+    }, [status.status])
+
     // Persistent WebSocket -- lives for the entire app lifetime
     useEffect(() => {
         let ws
@@ -36,14 +44,20 @@ export function BotProvider({ children }) {
                 if (data.startsWith('{') || data.startsWith('[')) {
                     try {
                         const parsed = JSON.parse(data)
-                        if (parsed.type === 'review_request' || parsed.type === 'missing_data') {
+                        if (parsed.type === 'review_request' || parsed.type === 'missing_data' || parsed.type === 'questions_detected') {
                             setReviewQueue(prev => [...prev, parsed])
+                            if (parsed.type === 'questions_detected') setAiProcessing(true)
+                            if (parsed.type === 'review_request' || parsed.type === 'missing_data') setAiProcessing(false)
                             return // Don't add structured JSON to text logs
                         }
                     } catch {
                         // Not JSON, treat as text log
                     }
                 }
+
+                // Track AI state via text logs
+                if (data.includes('Generando resumen IA')) setAiProcessing(true)
+                if (data.includes('[RESPUESTA IA]') || data.includes('Error inyectando script de extraccion')) setAiProcessing(false)
                 // Regular log line
                 setLogs(prev => {
                     const next = [...prev, data]
@@ -75,6 +89,7 @@ export function BotProvider({ children }) {
         logs, clearLogs,
         reviewQueue, popReview,
         reportUrl, setReportUrl,
+        aiProcessing, setAiProcessing,
     }
 
     return <BotContext.Provider value={value}>{children}</BotContext.Provider>

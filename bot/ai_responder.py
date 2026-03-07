@@ -42,8 +42,17 @@ _CV_DATA = None
 
 # Try models from best to fastest/cheapest
 GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.5-flash",
+    "gemma-3-1b-it",
+    "gemma-3-4b-it",
+    "gemma-3-12b-it",
+    "gemma-3-27b-it",
+    "gemma-3n-e4b-it",
+    "gemma-3n-e2b-it",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-robotics-er-1.5-preview",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
     "gemini-2.5-flash-lite",
     "gemini-flash-latest",
     "gemma-3-27b-it",
@@ -305,7 +314,7 @@ JSON A CONTINUACIÓN:"""
 #  PUBLIC API
 # ══════════════════════════════════════════════════════════════
 
-def summarize_job(job_title: str, company: str, job_description: str) -> dict:
+def summarize_job(job_title: str, company: str, job_description: str, quick_facts: dict = None) -> dict:
     """Extrae un resumen estructurado de la oferta usando IA.
     
     Retorna un dict con campos clave de la oferta interpretados por el modelo.
@@ -314,9 +323,13 @@ def summarize_job(job_title: str, company: str, job_description: str) -> dict:
     if not job_description or not GEMINI_AVAILABLE or not GEMINI_API_KEYS:
         return {"description": "Resumen IA no disponible."}
         
+    quick_facts_text = ""
+    if quick_facts:
+        quick_facts_text = "DATOS ADICIONALES EXTRAÍDOS PREVIAMENTE:\n" + "\n".join(f"- {k}: {v}" for k, v in quick_facts.items()) + "\n\n"
+
     prompt = f"""Analiza el siguiente texto de una oferta laboral para el cargo de "{job_title}" en la empresa "{company}".
 
-TEXTO DE LA OFERTA:
+{quick_facts_text}TEXTO DE LA OFERTA:
 {job_description[:4000]}
 
 Extrae la informacion y genera un resumen estructurado en español.

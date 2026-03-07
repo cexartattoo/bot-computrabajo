@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bot AI Working Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0e1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    gap: 40px;
+  }
+
+  h3 { color: #446; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* Simulación del stream del bot debajo */
+  .stream-container {
+    position: relative;
+    width: 480px;
+    height: 300px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #1a2040;
+  }
+
+  .fake-browser {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0d1525 0%, #111830 40%, #0d1020 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1a2a4a;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  /* ── OVERLAY PRINCIPAL ── */
+  .ai-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /* Fondo con muy baja opacidad para mantener visible el stream */
+  .ai-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(10,20,60,0.55) 0%, rgba(5,10,30,0.35) 100%);
+    backdrop-filter: blur(0.5px);
+  }
+
+  /* SVG del overlay */
+  .ai-overlay svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── VERSIÓN COMPACTA (esquina) ── */
+  .stream-container-sm {
+    position: relative;
+    width: 240px;
+    height: 150px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #1a2040;
+  }
+
+  .label {
+    color: #334;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h3>Overlay · IA Procesando · Versión grande</h3>
+
+<!-- VERSIÓN GRANDE -->
+<div class="stream-container">
+  <!-- Fondo simulando el stream del navegador -->
+  <div class="fake-browser">[ stream del navegador del bot ]</div>
+
+  <!-- OVERLAY SVG -->
+  <div class="ai-overlay">
+    <svg viewBox="0 0 480 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Gradiente radial central muy suave -->
+        <radialGradient id="centerGlow" cx="50%" cy="50%" r="45%">
+          <stop offset="0%" stop-color="#1a3aff" stop-opacity="0.12"/>
+          <stop offset="100%" stop-color="#0a1040" stop-opacity="0"/>
+        </radialGradient>
+
+        <!-- Filtro blur para halos -->
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="softglow" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="8"/>
+        </filter>
+        <filter id="tinyglow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2"/>
+        </filter>
+
+        <!-- Clip para mantener todo dentro -->
+        <clipPath id="bounds">
+          <rect width="480" height="300" rx="10"/>
+        </clipPath>
+      </defs>
+
+      <g clip-path="url(#bounds)">
+
+        <!-- Glow central muy suave -->
+        <rect width="480" height="300" fill="url(#centerGlow)"/>
+
+        <!-- ── ÓRBITAS GIRATORIAS ── -->
+        <!-- Órbita exterior grande -->
+        <g transform="translate(240,150)">
+          <ellipse rx="180" ry="100" fill="none" stroke="#1a2a6a" stroke-width="0.5" opacity="0.4"/>
+          <!-- Partícula orbitando exterior -->
+          <circle r="3" fill="#4488ff" opacity="0.9" filter="url(#tinyglow)">
+            <animateMotion dur="4s" repeatCount="indefinite">
+              <mpath href="#orbit1"/>
+            </animateMotion>
+          </circle>
+          <circle r="1.5" fill="#88aaff" opacity="0.6">
+            <animateMotion dur="4s" begin="-2s" repeatCount="indefinite">
+              <mpath href="#orbit1"/>
+            </animateMotion>
+          </circle>
+        </g>
+        <path id="orbit1" d="M 240,50 A 180,100 0 1,1 239.9,50" fill="none"/>
+
+        <!-- Órbita media -->
+        <g transform="translate(240,150)">
+          <ellipse rx="120" ry="65" fill="none" stroke="#2040aa" stroke-width="0.5" opacity="0.3"/>
+          <circle r="2.5" fill="#66aaff" opacity="0.8" filter="url(#tinyglow)">
+            <animateMotion dur="2.8s" repeatCount="indefinite">
+              <mpath href="#orbit2"/>
+            </animateMotion>
+          </circle>
+          <circle r="2" fill="#3366cc" opacity="0.7">
+            <animateMotion dur="2.8s" begin="-1.4s" repeatCount="indefinite">
+              <mpath href="#orbit2"/>
+            </animateMotion>
+          </circle>
+        </g>
+        <path id="orbit2" d="M 240,85 A 120,65 0 1,1 239.9,85" fill="none"/>
+
+        <!-- Órbita interior rápida -->
+        <g transform="translate(240,150)">
+          <ellipse rx="60" ry="34" fill="none" stroke="#3060cc" stroke-width="0.5" opacity="0.25"/>
+          <circle r="2" fill="#88ccff" opacity="0.95" filter="url(#tinyglow)">
+            <animateMotion dur="1.6s" repeatCount="indefinite">
+              <mpath href="#orbit3"/>
+            </animateMotion>
+          </circle>
+        </g>
+        <path id="orbit3" d="M 240,116 A 60,34 0 1,1 239.9,116" fill="none"/>
+
+        <!-- ── PULSO CENTRAL ── -->
+        <!-- Halo exterior pulsante -->
+        <circle cx="240" cy="150" r="50" fill="none" stroke="#2255cc" stroke-width="1.5" opacity="0">
+          <animate attributeName="r" values="28;55;28" dur="2.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;0;0.5" dur="2.2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="240" cy="150" r="40" fill="none" stroke="#3366ff" stroke-width="1" opacity="0">
+          <animate attributeName="r" values="20;42;20" dur="2.2s" begin="-0.7s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;0;0.4" dur="2.2s" begin="-0.7s" repeatCount="indefinite"/>
+        </circle>
+
+        <!-- Núcleo central glow -->
+        <circle cx="240" cy="150" r="22" fill="#0a1840" stroke="#2244aa" stroke-width="1" opacity="0.7"/>
+        <circle cx="240" cy="150" r="16" fill="#1030a0" opacity="0.5">
+          <animate attributeName="opacity" values="0.5;0.8;0.5" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <!-- Ícono cerebro/chip simplificado -->
+        <g transform="translate(240,150)" opacity="0.9">
+          <!-- Chip base -->
+          <rect x="-9" y="-9" width="18" height="18" rx="3" fill="none" stroke="#4488ff" stroke-width="1.2">
+            <animate attributeName="stroke-opacity" values="0.6;1;0.6" dur="1.8s" repeatCount="indefinite"/>
+          </rect>
+          <!-- Pines chip -->
+          <line x1="-9" y1="-5" x2="-13" y2="-5" stroke="#3366cc" stroke-width="1" opacity="0.7"/>
+          <line x1="-9" y1="0"  x2="-13" y2="0"  stroke="#3366cc" stroke-width="1" opacity="0.7"/>
+          <line x1="-9" y1="5"  x2="-13" y2="5"  stroke="#3366cc" stroke-width="1" opacity="0.7"/>
+          <line x1="9"  y1="-5" x2="13"  y2="-5" stroke="#3366cc" stroke-width="1" opacity="0.7"/>
+          <line x1="9"  y1="0"  x2="13"  y2="0"  stroke="#3366cc" stroke-width="1" opacity="0.7"/>
+          <line x1="9"  y1="5"  x2="13"  y2="5"  stroke="#3366cc" stroke-width="1" opacity="0.7"/>
+          <!-- Cruz interior -->
+          <line x1="-5" y1="0" x2="5" y2="0" stroke="#88aaff" stroke-width="1">
+            <animate attributeName="opacity" values="1;0.3;1" dur="0.9s" repeatCount="indefinite"/>
+          </line>
+          <line x1="0" y1="-5" x2="0" y2="5" stroke="#88aaff" stroke-width="1">
+            <animate attributeName="opacity" values="1;0.3;1" dur="0.9s" begin="-0.45s" repeatCount="indefinite"/>
+          </line>
+        </g>
+
+        <!-- ── PARTÍCULAS FLOTANTES ── -->
+        <circle cx="80" cy="60" r="1.5" fill="#3355aa" opacity="0.6">
+          <animate attributeName="cy" values="60;50;60" dur="3.1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.6;0.2;0.6" dur="3.1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="400" cy="80" r="1" fill="#4466bb" opacity="0.5">
+          <animate attributeName="cy" values="80;68;80" dur="2.7s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.7s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="130" cy="220" r="1.5" fill="#2244aa" opacity="0.4">
+          <animate attributeName="cy" values="220;210;220" dur="3.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.4;0.1;0.4" dur="3.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="360" cy="230" r="1" fill="#3355bb" opacity="0.5">
+          <animate attributeName="cy" values="230;218;230" dur="2.9s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.9s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="60" cy="160" r="1" fill="#2244aa" opacity="0.3">
+          <animate attributeName="cx" values="60;50;60" dur="4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="430" cy="140" r="1.5" fill="#3366cc" opacity="0.4">
+          <animate attributeName="cx" values="430;442;430" dur="3.3s" repeatCount="indefinite"/>
+        </circle>
+
+        <!-- ── TEXTO ESTADO ── -->
+        <!-- Badge inferior centrado -->
+        <rect x="170" y="256" width="140" height="26" rx="13" fill="#060c22" stroke="#1a2a6a" stroke-width="1" opacity="0.88"/>
+        <!-- Punto verde pulsante - bien alineado verticalmente con el texto -->
+        <circle cx="191" cy="269" r="4" fill="#22dd55">
+          <animate attributeName="opacity" values="1;0.25;1" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="4;3;4" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <!-- Halo verde exterior -->
+        <circle cx="191" cy="269" r="7" fill="none" stroke="#22dd55" stroke-width="0.8" opacity="0">
+          <animate attributeName="opacity" values="0.4;0;0.4" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="4;9;4" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <text x="256" y="274" text-anchor="middle" fill="#6688cc" font-size="10" font-family="'Courier New', monospace" letter-spacing="1.5">IA PROCESANDO</text>
+
+        <!-- Líneas de datos estilo matrix muy sutiles en bordes -->
+        <text x="8" y="20" fill="#0d1a3a" font-size="7" font-family="monospace" opacity="0.6">
+          01101 10010
+          <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite"/>
+        </text>
+        <text x="8" y="290" fill="#0d1a3a" font-size="7" font-family="monospace" opacity="0.5">
+          11001 01110
+          <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.4s" repeatCount="indefinite"/>
+        </text>
+        <text x="380" y="20" fill="#0d1a3a" font-size="7" font-family="monospace" opacity="0.4">
+          10110
+          <animate attributeName="opacity" values="0.4;0.1;0.4" dur="1.8s" repeatCount="indefinite"/>
+        </text>
+
+      </g>
+    </svg>
+  </div>
+</div>
+
+<span class="label">VERSIÓN GRANDE · 480×300</span>
+
+<!-- VERSIÓN COMPACTA -->
+<h3>Overlay · IA Procesando · Versión compacta (esquina)</h3>
+
+<div class="stream-container-sm">
+  <div class="fake-browser" style="font-size:10px">[ stream ]</div>
+
+  <div class="ai-overlay">
+    <svg viewBox="0 0 240 150" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="cg2" cx="50%" cy="50%" r="45%">
+          <stop offset="0%" stop-color="#1a3aff" stop-opacity="0.1"/>
+          <stop offset="100%" stop-color="#0a1040" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="tg2" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2"/>
+        </filter>
+        <clipPath id="b2"><rect width="240" height="150" rx="8"/></clipPath>
+      </defs>
+      <g clip-path="url(#b2)">
+        <rect width="240" height="150" fill="url(#cg2)"/>
+
+        <!-- Órbita exterior -->
+        <ellipse cx="120" cy="75" rx="90" ry="50" fill="none" stroke="#1a2a6a" stroke-width="0.5" opacity="0.35"/>
+        <circle r="2.5" fill="#4488ff" opacity="0.9" filter="url(#tg2)">
+          <animateMotion dur="4s" repeatCount="indefinite" path="M 120,25 A 90,50 0 1,1 119.9,25"/>
+        </circle>
+
+        <!-- Órbita media -->
+        <ellipse cx="120" cy="75" rx="55" ry="30" fill="none" stroke="#2040aa" stroke-width="0.5" opacity="0.25"/>
+        <circle r="2" fill="#66aaff" opacity="0.8" filter="url(#tg2)">
+          <animateMotion dur="2.5s" repeatCount="indefinite" path="M 120,45 A 55,30 0 1,1 119.9,45"/>
+        </circle>
+
+        <!-- Pulso central -->
+        <circle cx="120" cy="75" r="25" fill="none" stroke="#2255cc" stroke-width="1" opacity="0">
+          <animate attributeName="r" values="14;28;14" dur="2.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.45;0;0.45" dur="2.2s" repeatCount="indefinite"/>
+        </circle>
+
+        <!-- Núcleo -->
+        <circle cx="120" cy="75" r="11" fill="#0a1840" stroke="#2244aa" stroke-width="1" opacity="0.7"/>
+        <rect x="112" y="67" width="16" height="16" rx="3" fill="none" stroke="#4488ff" stroke-width="1">
+          <animate attributeName="stroke-opacity" values="0.5;1;0.5" dur="1.8s" repeatCount="indefinite"/>
+        </rect>
+        <line x1="115" y1="75" x2="125" y2="75" stroke="#88aaff" stroke-width="1">
+          <animate attributeName="opacity" values="1;0.2;1" dur="0.9s" repeatCount="indefinite"/>
+        </line>
+        <line x1="120" y1="70" x2="120" y2="80" stroke="#88aaff" stroke-width="1">
+          <animate attributeName="opacity" values="1;0.2;1" dur="0.9s" begin="-0.45s" repeatCount="indefinite"/>
+        </line>
+
+        <!-- Badge centrado en x=120, ancho=106 → x=67 a x=173 -->
+        <rect x="67" y="128" width="106" height="18" rx="9" fill="#060c22" stroke="#1a2a6a" stroke-width="1" opacity="0.88"/>
+        <!-- Contenido: [punto cx=78] [texto centrado en 124] -->
+        <circle cx="78" cy="137" r="3" fill="#22dd55">
+          <animate attributeName="opacity" values="1;0.25;1" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="78" cy="137" r="5" fill="none" stroke="#22dd55" stroke-width="0.8" opacity="0">
+          <animate attributeName="opacity" values="0.35;0;0.35" dur="1s" repeatCount="indefinite"/>
+          <animate attributeName="r" values="3;6;3" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <text x="128" y="141" text-anchor="middle" fill="#6688cc" font-size="8" font-family="'Courier New', monospace" letter-spacing="1">IA PROCESANDO</text>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<span class="label">VERSIÓN COMPACTA · 240×150</span>
+
+</body>
+</html>

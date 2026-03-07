@@ -131,7 +131,196 @@ function PauseOverlaySVG() {
             <circle cx="40" cy="40" r="38" fill="url(#glow_pause)" stroke="#aa6600" strokeWidth="1.5" opacity="0.9" />
             <circle cx="40" cy="40" r="36" fill="none" stroke="#ffaa00" strokeWidth="1" opacity="0.2" />
             <rect x="22" y="22" width="12" height="36" rx="4" fill="#ffaa00" opacity="0.9" />
-            <rect x="46" y="22" width="12" height="36" rx="4" fill="#ffaa00" opacity="0.9" />
+        </svg>
+    )
+}
+
+function BotAiWorkingSVG({ compact = false }) {
+    if (compact) {
+        return (
+            <svg viewBox="0 0 240 150" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+                <defs>
+                    <radialGradient id="cg2" cx="50%" cy="50%" r="45%">
+                        <stop offset="0%" stopColor="#1a3aff" stopOpacity="0.1" />
+                        <stop offset="100%" stopColor="#0a1040" stopOpacity="0" />
+                    </radialGradient>
+                    <filter id="tg2" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="2" />
+                    </filter>
+                    <clipPath id="b2"><rect width="240" height="150" rx="8" /></clipPath>
+                </defs>
+                <g clipPath="url(#b2)">
+                    <rect width="240" height="150" fill="url(#cg2)" />
+                    <ellipse cx="120" cy="75" rx="90" ry="50" fill="none" stroke="#1a2a6a" strokeWidth="0.5" opacity="0.35" />
+                    <circle r="2.5" fill="#4488ff" opacity="0.9" filter="url(#tg2)">
+                        <animateMotion dur="4s" repeatCount="indefinite" path="M 120,25 A 90,50 0 1,1 119.9,25" />
+                    </circle>
+                    <ellipse cx="120" cy="75" rx="55" ry="30" fill="none" stroke="#2040aa" strokeWidth="0.5" opacity="0.25" />
+                    <circle r="2" fill="#66aaff" opacity="0.8" filter="url(#tg2)">
+                        <animateMotion dur="2.5s" repeatCount="indefinite" path="M 120,45 A 55,30 0 1,1 119.9,45" />
+                    </circle>
+                    <circle cx="120" cy="75" r="25" fill="none" stroke="#2255cc" strokeWidth="1" opacity="0">
+                        <animate attributeName="r" values="14;28;14" dur="2.2s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.45;0;0.45" dur="2.2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="120" cy="75" r="11" fill="#0a1840" stroke="#2244aa" strokeWidth="1" opacity="0.7" />
+                    <rect x="112" y="67" width="16" height="16" rx="3" fill="none" stroke="#4488ff" strokeWidth="1">
+                        <animate attributeName="stroke-opacity" values="0.5;1;0.5" dur="1.8s" repeatCount="indefinite" />
+                    </rect>
+                    <line x1="115" y1="75" x2="125" y2="75" stroke="#88aaff" strokeWidth="1">
+                        <animate attributeName="opacity" values="1;0.2;1" dur="0.9s" repeatCount="indefinite" />
+                    </line>
+                    <line x1="120" y1="70" x2="120" y2="80" stroke="#88aaff" strokeWidth="1">
+                        <animate attributeName="opacity" values="1;0.2;1" dur="0.9s" begin="-0.45s" repeatCount="indefinite" />
+                    </line>
+                    <rect x="67" y="128" width="106" height="18" rx="9" fill="#060c22" stroke="#1a2a6a" strokeWidth="1" opacity="0.88" />
+                    <circle cx="78" cy="137" r="3" fill="#22dd55">
+                        <animate attributeName="opacity" values="1;0.25;1" dur="1s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="78" cy="137" r="5" fill="none" stroke="#22dd55" strokeWidth="0.8" opacity="0">
+                        <animate attributeName="opacity" values="0.35;0;0.35" dur="1s" repeatCount="indefinite" />
+                        <animate attributeName="r" values="3;6;3" dur="1s" repeatCount="indefinite" />
+                    </circle>
+                    <text x="128" y="141" textAnchor="middle" fill="#6688cc" fontSize="8" fontFamily="monospace" letterSpacing="1">IA PROCESANDO</text>
+                </g>
+            </svg>
+        )
+    }
+
+    return (
+        <svg viewBox="0 0 480 300" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+            <defs>
+                <radialGradient id="centerGlow" cx="50%" cy="50%" r="45%">
+                    <stop offset="0%" stopColor="#1a3aff" stopOpacity="0.12" />
+                    <stop offset="100%" stopColor="#0a1040" stopOpacity="0" />
+                </radialGradient>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <filter id="softglow" x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur stdDeviation="8" />
+                </filter>
+                <filter id="tinyglow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="2" />
+                </filter>
+                <clipPath id="bounds">
+                    <rect width="480" height="300" rx="10" />
+                </clipPath>
+            </defs>
+            <g clipPath="url(#bounds)">
+                <rect width="480" height="300" fill="url(#centerGlow)" />
+                <g transform="translate(240,150)">
+                    <ellipse rx="180" ry="100" fill="none" stroke="#1a2a6a" strokeWidth="0.5" opacity="0.4" />
+                    <circle r="3" fill="#4488ff" opacity="0.9" filter="url(#tinyglow)">
+                        <animateMotion dur="4s" repeatCount="indefinite">
+                            <mpath href="#orbit1" />
+                        </animateMotion>
+                    </circle>
+                    <circle r="1.5" fill="#88aaff" opacity="0.6">
+                        <animateMotion dur="4s" begin="-2s" repeatCount="indefinite">
+                            <mpath href="#orbit1" />
+                        </animateMotion>
+                    </circle>
+                </g>
+                <path id="orbit1" d="M 240,50 A 180,100 0 1,1 239.9,50" fill="none" />
+                <g transform="translate(240,150)">
+                    <ellipse rx="120" ry="65" fill="none" stroke="#2040aa" strokeWidth="0.5" opacity="0.3" />
+                    <circle r="2.5" fill="#66aaff" opacity="0.8" filter="url(#tinyglow)">
+                        <animateMotion dur="2.8s" repeatCount="indefinite">
+                            <mpath href="#orbit2" />
+                        </animateMotion>
+                    </circle>
+                    <circle r="2" fill="#3366cc" opacity="0.7">
+                        <animateMotion dur="2.8s" begin="-1.4s" repeatCount="indefinite">
+                            <mpath href="#orbit2" />
+                        </animateMotion>
+                    </circle>
+                </g>
+                <path id="orbit2" d="M 240,85 A 120,65 0 1,1 239.9,85" fill="none" />
+                <g transform="translate(240,150)">
+                    <ellipse rx="60" ry="34" fill="none" stroke="#3060cc" strokeWidth="0.5" opacity="0.25" />
+                    <circle r="2" fill="#88ccff" opacity="0.95" filter="url(#tinyglow)">
+                        <animateMotion dur="1.6s" repeatCount="indefinite">
+                            <mpath href="#orbit3" />
+                        </animateMotion>
+                    </circle>
+                </g>
+                <path id="orbit3" d="M 240,116 A 60,34 0 1,1 239.9,116" fill="none" />
+                <circle cx="240" cy="150" r="50" fill="none" stroke="#2255cc" strokeWidth="1.5" opacity="0">
+                    <animate attributeName="r" values="28;55;28" dur="2.2s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.5;0;0.5" dur="2.2s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="240" cy="150" r="40" fill="none" stroke="#3366ff" strokeWidth="1" opacity="0">
+                    <animate attributeName="r" values="20;42;20" dur="2.2s" begin="-0.7s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.4;0;0.4" dur="2.2s" begin="-0.7s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="240" cy="150" r="22" fill="#0a1840" stroke="#2244aa" strokeWidth="1" opacity="0.7" />
+                <circle cx="240" cy="150" r="16" fill="#1030a0" opacity="0.5">
+                    <animate attributeName="opacity" values="0.5;0.8;0.5" dur="1.8s" repeatCount="indefinite" />
+                </circle>
+                <g transform="translate(240,150)" opacity="0.9">
+                    <rect x="-9" y="-9" width="18" height="18" rx="3" fill="none" stroke="#4488ff" strokeWidth="1.2">
+                        <animate attributeName="stroke-opacity" values="0.6;1;0.6" dur="1.8s" repeatCount="indefinite" />
+                    </rect>
+                    <line x1="-9" y1="-5" x2="-13" y2="-5" stroke="#3366cc" strokeWidth="1" opacity="0.7" />
+                    <line x1="-9" y1="0" x2="-13" y2="0" stroke="#3366cc" strokeWidth="1" opacity="0.7" />
+                    <line x1="-9" y1="5" x2="-13" y2="5" stroke="#3366cc" strokeWidth="1" opacity="0.7" />
+                    <line x1="9" y1="-5" x2="13" y2="-5" stroke="#3366cc" strokeWidth="1" opacity="0.7" />
+                    <line x1="9" y1="0" x2="13" y2="0" stroke="#3366cc" strokeWidth="1" opacity="0.7" />
+                    <line x1="9" y1="5" x2="13" y2="5" stroke="#3366cc" strokeWidth="1" opacity="0.7" />
+                    <line x1="-5" y1="0" x2="5" y2="0" stroke="#88aaff" strokeWidth="1">
+                        <animate attributeName="opacity" values="1;0.3;1" dur="0.9s" repeatCount="indefinite" />
+                    </line>
+                    <line x1="0" y1="-5" x2="0" y2="5" stroke="#88aaff" strokeWidth="1">
+                        <animate attributeName="opacity" values="1;0.3;1" dur="0.9s" begin="-0.45s" repeatCount="indefinite" />
+                    </line>
+                </g>
+                <circle cx="80" cy="60" r="1.5" fill="#3355aa" opacity="0.6">
+                    <animate attributeName="cy" values="60;50;60" dur="3.1s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="3.1s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="400" cy="80" r="1" fill="#4466bb" opacity="0.5">
+                    <animate attributeName="cy" values="80;68;80" dur="2.7s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.7s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="130" cy="220" r="1.5" fill="#2244aa" opacity="0.4">
+                    <animate attributeName="cy" values="220;210;220" dur="3.5s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.4;0.1;0.4" dur="3.5s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="360" cy="230" r="1" fill="#3355bb" opacity="0.5">
+                    <animate attributeName="cy" values="230;218;230" dur="2.9s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.9s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="60" cy="160" r="1" fill="#2244aa" opacity="0.3">
+                    <animate attributeName="cx" values="60;50;60" dur="4s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="430" cy="140" r="1.5" fill="#3366cc" opacity="0.4">
+                    <animate attributeName="cx" values="430;442;430" dur="3.3s" repeatCount="indefinite" />
+                </circle>
+                <rect x="170" y="256" width="140" height="26" rx="13" fill="#060c22" stroke="#1a2a6a" strokeWidth="1" opacity="0.88" />
+                <circle cx="191" cy="269" r="4" fill="#22dd55">
+                    <animate attributeName="opacity" values="1;0.25;1" dur="1s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="4;3;4" dur="1s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="191" cy="269" r="7" fill="none" stroke="#22dd55" strokeWidth="0.8" opacity="0">
+                    <animate attributeName="opacity" values="0.4;0;0.4" dur="1s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="4;9;4" dur="1s" repeatCount="indefinite" />
+                </circle>
+                <text x="256" y="274" textAnchor="middle" fill="#6688cc" fontSize="10" fontFamily="monospace" letterSpacing="1.5">IA PROCESANDO</text>
+                <text x="8" y="20" fill="#0d1a3a" fontSize="7" fontFamily="monospace" opacity="0.6">
+                    01101 10010
+                    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite" />
+                </text>
+                <text x="8" y="290" fill="#0d1a3a" fontSize="7" fontFamily="monospace" opacity="0.5">
+                    11001 01110
+                    <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.4s" repeatCount="indefinite" />
+                </text>
+                <text x="380" y="20" fill="#0d1a3a" fontSize="7" fontFamily="monospace" opacity="0.4">
+                    10110
+                    <animate attributeName="opacity" values="0.4;0.1;0.4" dur="1.8s" repeatCount="indefinite" />
+                </text>
+            </g>
         </svg>
     )
 }
@@ -151,7 +340,7 @@ function getSavedSize() {
 }
 
 export default function BotStream() {
-    const { status } = useBot()
+    const { status, aiProcessing } = useBot()
     const [position, setPosition] = useState({ x: window.innerWidth - 340, y: 80 })
     const [isDragging, setIsDragging] = useState(false)
     const [viewMode, setViewMode] = useState('normal') // 'minimized' | 'normal' | 'expanded'
@@ -166,6 +355,15 @@ export default function BotStream() {
     const botStatus = status?.status || 'idle'
     const isRunning = botStatus === 'running' || botStatus === 'paused' || botStatus === 'paused_user'
     const isPaused = botStatus === 'paused' || botStatus === 'paused_user'
+    const prevRunningRef = useRef(false)
+
+    // Clear stale screenshot when bot starts (transition: not running -> running)
+    useEffect(() => {
+        if (isRunning && !prevRunningRef.current) {
+            setCurrentSrc('') // Force loading SVG until first fresh frame arrives
+        }
+        prevRunningRef.current = isRunning
+    }, [isRunning])
 
     // Persist size to sessionStorage
     useEffect(() => {
@@ -175,7 +373,6 @@ export default function BotStream() {
     // Preload-based recursive polling for screenshots
     useEffect(() => {
         if (!isRunning) {
-            setCurrentSrc('')
             return
         }
         let cancelled = false
@@ -451,6 +648,17 @@ export default function BotStream() {
                             </div>
                         ) : (
                             renderIdleSVG()
+                        )}
+
+                        {/* AI Processing Overlay */}
+                        {aiProcessing && currentSrc && !isPaused && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                zIndex: 1,
+                            }}>
+                                <BotAiWorkingSVG compact={isMinimized || (panelSize.width < 400 && !isExpanded)} />
+                            </div>
                         )}
 
                         {/* Pause overlay */}

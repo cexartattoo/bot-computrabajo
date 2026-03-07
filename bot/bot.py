@@ -331,9 +331,9 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                             rest_counter = 0
                             rest_interval = random.randint(3, 5)
                         else:
-                            # Longer cooldown between offers to avoid exhausting
-                            # Gemini API rate limits (3 keys x 3 retries = 9 calls burnt in 30s)
-                            cooldown = random.uniform(15, 25)
+                            # Use cooldown from config + small random variance
+                            base_cooldown = getattr(config, "COOLDOWN_SECONDS", 10)
+                            cooldown = base_cooldown + random.uniform(0, 2)
                             print(f"  [~] Pausa entre ofertas: {cooldown:.0f}s (cooldown API)")
                             await asyncio.sleep(cooldown)
 

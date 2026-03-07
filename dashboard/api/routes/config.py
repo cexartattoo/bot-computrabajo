@@ -176,3 +176,31 @@ async def update_notifications(body: NotificationsUpdate, user=Depends(get_curre
     prefs = {"telegram_enabled": body.telegram_enabled, "browser_enabled": body.browser_enabled}
     _save_notif_prefs(prefs)
     return prefs
+
+# ── Cooldown ──────────────────────────────────────────────────
+
+@router.get("/cooldown")
+async def get_cooldown(user=Depends(get_current_user)):
+    """Get the time to wait between processing offers."""
+    val = os.getenv("COOLDOWN_SECONDS", "10")
+    try:
+        seconds = int(val)
+    except ValueError:
+        seconds = 10
+    return {"cooldown_seconds": seconds}
+
+
+class CooldownUpdate(BaseModel):
+    cooldown_seconds: int
+
+
+@router.put("/cooldown")
+async def update_cooldown(body: CooldownUpdate, user=Depends(get_current_user)):
+    """Update cooldown time and persist to .env."""
+    seconds = max(1, body.cooldown_seconds) # minimum 1s
+    _update_env("COOLDOWN_SECONDS", str(seconds))
+    # Also update runtime config if it has it
+    config = _get_config_module()
+    if hasattr(config, "COOLDOWN_SECONDS"):
+        config.COOLDOWN_SECONDS = seconds
+    return {"saved": True, "cooldown_seconds": seconds}

@@ -9,6 +9,7 @@ export default function Settings() {
     const [newLoc, setNewLoc] = useState('')
     const [blacklist, setBlacklist] = useState([])
     const [newBl, setNewBl] = useState('')
+    const [cooldown, setCooldown] = useState(10)
     const [apiKeys, setApiKeys] = useState([])
     const [creds, setCreds] = useState({})
     const [telegram, setTelegram] = useState({})
@@ -30,6 +31,7 @@ export default function Settings() {
         fetch(`${API}/config/cvs`).then(r => r.json()).then(d => setCvs(d.cvs || []))
         fetch(`${API}/config/telegram`).then(r => r.json()).then(setTelegram)
         fetch(`${API}/config/notifications`).then(r => r.json()).then(setNotifications).catch(() => { })
+        fetch(`${API}/config/cooldown`).then(r => r.json()).then(d => setCooldown(d.cooldown_seconds || 10)).catch(() => { })
         fetch(`${API}/credentials`).then(r => r.json()).then(d => setCreds(d.credentials || {}))
         // Check if browser notifications are supported
         setBrowserNotifSupported('Notification' in window)
@@ -99,6 +101,14 @@ export default function Settings() {
             body: JSON.stringify({ key, value }),
         })
         flash(`${key} actualizado`)
+    }
+
+    const saveCooldown = async () => {
+        await fetch(`${API}/config/cooldown`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cooldown_seconds: cooldown }),
+        })
+        flash('Tiempo de espera guardado')
     }
 
     const cardStyle = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
@@ -250,6 +260,24 @@ export default function Settings() {
                         <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>{c.size_kb} KB</span>
                     </div>
                 ))}
+            </section>
+
+            {/* Cooldown */}
+            <section className="rounded-xl p-5 space-y-3" style={cardStyle}>
+                <h2 className="text-lg font-semibold">Tiempo de Espera</h2>
+                <div className="flex items-center gap-3">
+                    <span className="text-sm w-48" style={{ color: 'var(--text-secondary)' }}>Segundos entre aplicaciones:</span>
+                    <input
+                        type="number"
+                        min="1"
+                        value={cooldown}
+                        onChange={e => setCooldown(parseInt(e.target.value) || 10)}
+                        className="w-24 rounded-lg px-3 py-2 text-sm text-center" style={inputStyle}
+                    />
+                    <button onClick={saveCooldown} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: 'var(--accent)', color: '#fff' }}>
+                        Guardar
+                    </button>
+                </div>
             </section>
         </div>
     )

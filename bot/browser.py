@@ -553,8 +553,37 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
                 }
             }
 
-            // Texto plano completo como fallback
-            const fallbackText = sections.description || '';
+            // Fallback regex extraction from description text
+            if (fullDescText) {
+                if (!quick_facts.salary) {
+                    const match = fullDescText.match(/(?:salario|sueldo):\s*([^\n\r]{5,60})/i);
+                    if (match) quick_facts.salary = match[1].trim();
+                }
+                if (!quick_facts.contract) {
+                    const match = fullDescText.match(/(?:tipo de contrato|contrato):\s*([^\n\r]{5,60})/i);
+                    if (match) quick_facts.contract = match[1].trim();
+                }
+                if (!quick_facts.schedule) {
+                    const match = fullDescText.match(/(?:horario|jornada):\s*([^\n\r]{5,60})/i);
+                    if (match) quick_facts.schedule = match[1].trim();
+                }
+                if (!quick_facts.location) {
+                    const match = fullDescText.match(/(?:lugar de trabajo|ubicación|ubicacion|dirección|direccion):\s*([^\n\r]{5,60})/i);
+                    if (match) quick_facts.location = match[1].trim();
+                }
+                if (!quick_facts.modality) {
+                    const lowerDesc = fullDescText.toLowerCase();
+                    if (lowerDesc.includes('teletrabajo') || lowerDesc.includes('100% remoto') || lowerDesc.includes('trabajo remoto') || lowerDesc.includes('remoto full')) {
+                        quick_facts.modality = 'Remoto';
+                    } else if (lowerDesc.includes('híbrido') || lowerDesc.includes('hibrido')) {
+                        quick_facts.modality = 'Híbrido';
+                    } else if (lowerDesc.includes('presencial') || lowerDesc.includes('modalidad presencial') || lowerDesc.includes('trabajo en oficina')) {
+                        quick_facts.modality = 'Presencial';
+                    } else if (lowerDesc.includes('trabajo en casa') || lowerDesc.includes('home office')) {
+                        quick_facts.modality = 'Remoto';
+                    }
+                }
+            }
 
             return {
                 text: fallbackText.substring(0, 15000),
@@ -577,7 +606,7 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
 
     print(f"  [Browser] Generando resumen IA de la oferta...")
     from bot.ai_responder import summarize_job
-    job["ai_summary"] = summarize_job(job["title"], job["company"], desc_text)
+    job["ai_summary"] = summarize_job(job["title"], job["company"], desc_text, job["quick_facts"])
 
     answers = {}
 
@@ -719,6 +748,20 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
                 opts = q.get('options', [])
                 opts_str = f", opciones: {', '.join(opts)}" if opts else ""
                 print(f"  {idx+1}. {q['text']} (tipo: {tipo}{opts_str})")
+
+            # Emit structured marker so dashboard shows questions immediately
+            import json as _json_qd
+            qd_payload = {
+                "type": "questions_detected",
+                "job_title": job.get("title", ""),
+                "company": job.get("company", ""),
+                "questions": [
+                    {"text": q["text"], "type": q.get("type", "text"), "options": q.get("options", [])}
+                    for q in questions_raw
+                ]
+            }
+            print(f"[QUESTIONS_DETECTED]{_json_qd.dumps(qd_payload, ensure_ascii=False)}")
+            sys.stdout.flush()
 
         # ── Batch answer all questions via LLM ──────────────
         batch_answers = {}

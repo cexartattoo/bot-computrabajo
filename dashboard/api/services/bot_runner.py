@@ -257,6 +257,22 @@ class BotManager:
                     except Exception as e:
                         logger.warning(f"Failed to parse REVIEW_REQUEST: {e}")
 
+                # Intercept [QUESTIONS_DETECTED] marker to show questions before AI responds
+                if "[QUESTIONS_DETECTED]" in line:
+                    import json as _json
+                    try:
+                        json_str = line.split("[QUESTIONS_DETECTED]", 1)[1]
+                        qd_data = _json.loads(json_str)
+                        # Broadcast to WebSocket clients immediately
+                        if self._loop and self._loop.is_running():
+                            asyncio.run_coroutine_threadsafe(
+                                self._broadcast(_json.dumps(qd_data, ensure_ascii=False)),
+                                self._loop
+                            )
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Failed to parse QUESTIONS_DETECTED: {e}")
+
                 # Intercept [MISSING_DATA] marker for dato faltante flow
                 if "[MISSING_DATA]" in line:
                     import json as _json

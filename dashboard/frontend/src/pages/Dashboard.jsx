@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useBot } from '../context/BotContext'
 
 const API = '/api'
@@ -25,8 +24,9 @@ function formatElapsed(seconds) {
 }
 
 export default function Dashboard() {
-    const { status, setStatus, logs, clearLogs, reportUrl } = useBot()
-    const navigate = useNavigate()
+    const { status, setStatus, logs, clearLogs, aiProcessing, reviewQueue, popReview, reportUrl } = useBot()
+
+    // Dashboard Controls
     const [mode, setMode] = useState('dry-run-llm')
     const [maxApps, setMaxApps] = useState(5)
     const [keyword, setKeyword] = useState('')
@@ -34,7 +34,23 @@ export default function Dashboard() {
     const [cvs, setCvs] = useState([])
     const [loading, setLoading] = useState(false)
     const [elapsed, setElapsed] = useState(0)
+
+    // Review States
+    const [currentReview, setCurrentReview] = useState(null)
+    const [editedAnswers, setEditedAnswers] = useState({})
+    const [submitting, setSubmitting] = useState(false)
+    const [selectedCv, setSelectedCv] = useState('')
+    const [missingData, setMissingData] = useState(null)
+    const [missingAnswer, setMissingAnswer] = useState('')
+    const [detectedQuestions, setDetectedQuestions] = useState(null)
+    const [timeLeft, setTimeLeft] = useState(300)
+    const [jobExpanded, setJobExpanded] = useState(true)
+    const [viewMode, setViewMode] = useState('original')
+    const [openSections, setOpenSections] = useState(new Set(['description']))
+
+    // Logs State
     const logsRef = useRef(null)
+    const [userScrolled, setUserScrolled] = useState(false)
 
     useEffect(() => {
         fetch(`${API}/config/cvs`).then(r => r.json()).then(d => setCvs(d.cvs || [])).catch(() => { })
@@ -45,17 +61,91 @@ export default function Dashboard() {
             const timer = setInterval(() => setElapsed(prev => prev + 1), 1000)
             return () => clearInterval(timer)
         } else if (status.status === 'idle' || status.status === 'error' || status.status === 'disconnected') {
-            setElapsed(0)
+            // Keep elapsed if completed, reset if starting fresh
+            if (status.apps_this_session === 0) setElapsed(0)
         }
-    }, [status.status])
+    }, [status.status, status.apps_this_session])
+
+    // Auto-scroll sticky logs unless user scrolled up
+    useEffect(() => {
+        if (!userScrolled && logsRef.current) {
+            logsRef.current.scrollTop = logsRef.current.scrollHeight
+        }
+    }, [logs, userScrolled])
+
+    const handleLogScroll = () => {
+        if (!logsRef.current) return
+        const { scrollTop, scrollHeight, clientHeight } = logsRef.current
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 10
+        setUserScrolled(!isAtBottom)
+    }
+
+    // Review Queue processor
+    useEffect(() => {
+        if (reviewQueue.length > 0) {
+            const latest = reviewQueue[reviewQueue.length - 1]
+            if (latest.type === 'questions_detected') {
+                setDetectedQuestions(latest)
+                return
+            }
+            if (latest.type === 'missing_data') {
+                setMissingData(latest)
+                return
+            }
+            setDetectedQuestions(null)
+            setCurrentReview(latest)
+            initEditableAnswers(latest.answers)
+        }
+    }, [reviewQueue])
 
     useEffect(() => {
-        if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight
-    }, [logs])
+        if (!currentReview && status.pending_confirmation?.type === 'review_request') {
+            const data = status.pending_confirmation.data
+            setCurrentReview(data)
+            initEditableAnswers(data?.answers)
+        }
+    }, [status.pending_confirmation, currentReview])
 
+    // Missing Data Timer
+    useEffect(() => {
+        if (!missingData) {
+            setTimeLeft(300)
+            return
+        }
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer)
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+        return () => clearInterval(timer)
+    }, [missingData])
+
+    const initEditableAnswers = (answers) => {
+        if (!answers) return
+        const editable = {}
+        Object.entries(answers).forEach(([q, data]) => {
+            editable[q] = typeof data === 'object' ? (data.answer || data.respuesta || '') : String(data)
+        })
+        setEditedAnswers(editable)
+    }
+
+    const loadNext = () => {
+        popReview()
+        setCurrentReview(null)
+        setEditedAnswers({})
+    }
+
+    // Bot Actions
     const startBot = async () => {
         setLoading(true)
         setElapsed(0)
+        setCurrentReview(null)
+        setMissingData(null)
+        setDetectedQuestions(null)
         const body = { mode, max_apps: maxApps || null, keyword: keyword || null, cv: cv || null }
         const res = await fetch(`${API}/bot/start`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -63,10 +153,6 @@ export default function Dashboard() {
         const data = await res.json()
         setStatus(prev => ({ ...prev, ...data }))
         setLoading(false)
-        // Redirect to review page in semi-auto mode
-        if (mode === 'semi-auto' && !data.error) {
-            navigate('/review')
-        }
     }
 
     const stopBot = async () => {
@@ -77,150 +163,350 @@ export default function Dashboard() {
         setLoading(false)
     }
 
+    const pauseResumeBot = async () => {
+        const endpoint = status.status === 'paused_user' ? `${API}/bot/resume` : `${API}/bot/pause`
+        setLoading(true)
+        await fetch(endpoint, { method: 'POST' })
+        const s = await fetch(`${API}/bot/status`).then(r => r.json())
+        setStatus(prev => ({ ...prev, ...s }))
+        setLoading(false)
+    }
 
+    // Review Actions
+    const handleApprove = async () => {
+        setSubmitting(true)
+        await fetch(`${API}/bot/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved: true, edited_answers: editedAnswers, cv: selectedCv || null }),
+        })
+        setSubmitting(false)
+        loadNext()
+    }
 
-    const isRunning = status.status === 'running' || status.status === 'paused' || status.status === 'paused_user'
+    const handleReject = async () => {
+        setSubmitting(true)
+        await fetch(`${API}/bot/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved: false }),
+        })
+        setSubmitting(false)
+        loadNext()
+    }
 
+    const sendMissingData = async () => {
+        if (!missingAnswer.trim()) return
+        await fetch(`${API}/bot/respond_missing`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ answer: missingAnswer }),
+        })
+        setMissingData(null)
+        setMissingAnswer('')
+    }
+
+    const updateAnswer = (question, value) => {
+        setEditedAnswers(prev => ({ ...prev, [question]: value }))
+    }
+
+    // Determine Stage
+    let stage = 'stopped'
+    const isRunningState = status.status === 'running'
+    const isPausedState = status.status === 'paused_user' || status.status === 'paused'
+
+    if (missingData || currentReview || status.pending_confirmation) {
+        stage = 'review'
+    } else if (isPausedState) {
+        stage = 'paused'
+    } else if (isRunningState) {
+        if (aiProcessing || detectedQuestions) {
+            stage = 'ai_processing'
+        } else if (status.apps_this_session === 0 && elapsed < 8 && logs.length < 20) {
+            stage = 'starting'
+        } else {
+            stage = 'searching'
+        }
+    } else if (status.status === 'idle' && status.apps_this_session > 0) {
+        stage = 'completed'
+    }
+
+    // Styles
     const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
-    const input = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
+    const inputStyle = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
 
     return (
-        <div className="space-y-6">
-            <h1 className="text-2xl font-bold">Panel de Control</h1>
-
-            {/* Status badge + elapsed timer */}
-            <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[status.status] || 'bg-gray-500'}`} />
-                <span className="text-lg font-semibold">{STATUS_LABELS[status.status] || status.status}</span>
-                {isRunning && (
-                    <>
-                        <span className="px-2 py-0.5 text-xs font-mono rounded"
-                            style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent)' }}>
+        <div className="space-y-6 max-w-5xl mx-auto flex flex-col h-[calc(100vh-100px)]">
+            {/* Header */}
+            <div className="flex items-center justify-between shrink-0">
+                <h1 className="text-2xl font-bold">Panel Unificado</h1>
+                <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[status.status] || 'bg-gray-500'}`} />
+                    <span className="text-sm font-semibold">{STATUS_LABELS[status.status] || status.status}</span>
+                    {(isRunningState || isPausedState) && (
+                        <span className="px-2 py-0.5 text-xs font-mono rounded ml-2" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent)' }}>
                             {formatElapsed(elapsed)} transcurrido
                         </span>
-                        <span className="ml-auto text-sm" style={{ color: 'var(--text-secondary)' }}>
-                            {status.apps_this_session} aplicaciones esta sesion
-                        </span>
-                    </>
+                    )}
+                </div>
+            </div>
+
+            {/* Dynamic Stage Area */}
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-2 custom-scrollbar">
+
+                {stage === 'stopped' && (
+                    <div className="rounded-xl p-6 space-y-6" style={card}>
+                        <div className="text-center pb-4">
+                            <h2 className="text-xl font-bold mb-2">Iniciar Nueva Sesion</h2>
+                            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Configura los parametros y lanza el bot para comenzar a buscar ofertas.</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Modo</label>
+                                <select value={mode} onChange={e => setMode(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                                    <option value="apply">Aplicar Automaticamente</option>
+                                    <option value="dry-run-llm">Dry-Run (Solo IA, no aplicar)</option>
+                                    <option value="semi-auto">Semi-Auto (Revision manual)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Max. aplicaciones</label>
+                                <input type="number" value={maxApps} onChange={e => setMaxApps(Number(e.target.value))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} min={1} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Keyword (opcional)</label>
+                                <input type="text" value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="ej: ingeniero" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>CV</label>
+                                <select value={cv} onChange={e => setCv(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                                    <option value="">Auto (default)</option>
+                                    {cvs.map(c => <option key={c.filename} value={c.filename}>{c.filename}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-center pt-4">
+                            <button onClick={startBot} disabled={loading}
+                                className="px-8 py-3 rounded-lg font-bold text-sm hover:opacity-90 transition disabled:opacity-50 shadow-lg px-12"
+                                style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
+                                Lanza el Bot
+                            </button>
+                        </div>
+                        {reportUrl && (
+                            <div className="mt-4 p-4 rounded-lg flex justify-between items-center" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid var(--success)' }}>
+                                <span className="text-sm font-semibold text-green-400">Ultimo informe disponible</span>
+                                <a href={reportUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold px-4 py-2 rounded bg-green-600 text-white hover:bg-green-500 transition">Ver Reporte</a>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {stage === 'starting' && (
+                    <div className="rounded-xl p-12 text-center space-y-6" style={card}>
+                        <div className="w-16 h-16 mx-auto rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+                        <div>
+                            <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Iniciando entorno del Bot...</h2>
+                            <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>Abriendo navegador y preparando controles.</p>
+                        </div>
+                        <button onClick={stopBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--error)', color: '#fff' }}>
+                            Cancelar
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'searching' && (
+                    <div className="rounded-xl p-8 space-y-6" style={card}>
+                        <div className="flex flex-col items-center justify-center text-center space-y-4">
+                            <div className="w-12 h-12 rounded-full border-4 border-dashed animate-[spin_3s_linear_infinite]" style={{ borderColor: 'var(--accent)' }} />
+                            <div>
+                                <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>Buscando ofertas...</h2>
+                                <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Explorando paginas y comprobando requisitos.</p>
+                            </div>
+                            <div className="flex gap-4 mt-2">
+                                <div className="px-4 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                                    <span className="block text-2xl font-bold">{status.apps_this_session}</span>
+                                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Procesadas</span>
+                                </div>
+                                <div className="px-4 py-2 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                                    <span className="block text-2xl font-bold">{mode}</span>
+                                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Modo activo</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                            <button onClick={pauseResumeBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--warning)', color: '#fff' }}>
+                                Pausar
+                            </button>
+                            <button onClick={stopBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--error)', color: '#fff' }}>
+                                Detener Bot
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {stage === 'paused' && (
+                    <div className="rounded-xl p-10 text-center space-y-6" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)' }}>
+                        <div className="text-5xl">⏸️</div>
+                        <div>
+                            <h2 className="text-xl font-bold" style={{ color: 'var(--warning)' }}>Bot Pausado</h2>
+                            <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>El procesamiento esta detenido. Puedes revisar el stream o cambiar de aplicacion.</p>
+                        </div>
+                        <div className="flex justify-center gap-3">
+                            <button onClick={pauseResumeBot} disabled={loading} className="px-8 py-2.5 rounded-lg text-sm font-bold transition hover:opacity-90 shadow-lg" style={{ background: 'var(--success)', color: '#fff' }}>
+                                Reanudar Bot
+                            </button>
+                            <button onClick={stopBot} disabled={loading} className="px-6 py-2.5 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--error)', color: '#fff' }}>
+                                Detener
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {stage === 'completed' && (
+                    <div className="rounded-xl p-10 text-center space-y-6" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid var(--success)' }}>
+                        <div className="text-5xl">✅</div>
+                        <div>
+                            <h2 className="text-2xl font-bold" style={{ color: 'var(--success)' }}>Sesion Completada</h2>
+                            <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>Se han procesado {status.apps_this_session} ofertas exitosamente.</p>
+                        </div>
+                        <button onClick={() => setStatus(prev => ({ ...prev, apps_this_session: 0 }))} className="px-8 py-2.5 rounded-lg text-sm font-bold transition hover:opacity-90 shadow-lg" style={{ background: 'var(--success)', color: '#fff' }}>
+                            Volver al Inicio
+                        </button>
+                    </div>
+                )}
+
+                {stage === 'ai_processing' && detectedQuestions && (
+                    <div className="rounded-xl p-6 space-y-4" style={card}>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
+                            <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>IA Asistiendo...</h2>
+                        </div>
+                        <div className="p-4 rounded-lg" style={{ background: 'var(--bg-primary)' }}>
+                            <span className="text-sm font-bold block mb-2" style={{ color: 'var(--accent)' }}>Preguntas detectadas ({detectedQuestions.questions?.length || 0}):</span>
+                            <div className="space-y-2">
+                                {detectedQuestions.questions?.map((q, i) => (
+                                    <div key={i} className="text-xs p-2 rounded" style={{ background: 'var(--bg-hover)' }}>{i + 1}. {q.text}</div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex justify-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+                            <button onClick={pauseResumeBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--warning)', color: '#fff' }}>
+                                Pausar
+                            </button>
+                            <button onClick={stopBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--error)', color: '#fff' }}>
+                                Detener Bot
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {stage === 'ai_processing' && !detectedQuestions && (
+                    <div className="rounded-xl p-8 text-center space-y-6" style={card}>
+                        <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center relative">
+                            <div className="absolute inset-0 rounded-full bg-blue-500 opacity-20 animate-ping" />
+                            <span className="text-3xl relative z-10">🧠</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Generando Resumen IA...</h2>
+                            <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>La inteligencia artificial está analizando los detalles de la oferta.</p>
+                        </div>
+                        <div className="flex justify-center gap-3 pt-4">
+                            <button onClick={pauseResumeBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--warning)', color: '#fff' }}>Pausar</button>
+                            <button onClick={stopBot} disabled={loading} className="px-6 py-2 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--error)', color: '#fff' }}>Detener Bot</button>
+                        </div>
+                    </div>
+                )}
+
+                {stage === 'review' && missingData && (
+                    <div className="rounded-xl p-6 space-y-4" style={{ ...card, borderColor: timeLeft === 0 ? 'var(--error)' : 'var(--warning)' }}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className={`w-3 h-3 rounded-full ${timeLeft === 0 ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                                <span className="text-sm font-bold" style={{ color: timeLeft === 0 ? 'var(--error)' : 'var(--warning)' }}>Dato Faltante</span>
+                            </div>
+                            <span className="text-xs font-bold font-mono text-red-400">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
+                        </div>
+                        <div className="text-sm space-y-1 my-3 text-gray-300">
+                            <p><strong>Pregunta:</strong> {missingData.question}</p>
+                            {missingData.current_answer && <p><strong>Respuesta IA:</strong> <span className="text-red-400">{missingData.current_answer}</span></p>}
+                        </div>
+                        <input type="text" value={missingAnswer} onChange={e => setMissingAnswer(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && sendMissingData()}
+                            className="w-full rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2"
+                            style={inputStyle} autoFocus />
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={sendMissingData} disabled={timeLeft === 0} className={`px-6 py-2 rounded-lg font-semibold text-sm transition ${timeLeft === 0 ? 'opacity-50' : 'hover:opacity-90'}`} style={{ background: 'var(--accent)', color: '#fff' }}>Enviar Dato</button>
+                            <button onClick={() => { setMissingData(null); setMissingAnswer('') }} disabled={timeLeft === 0} className="px-6 py-2 rounded-lg font-semibold text-sm bg-gray-700 text-white">Omitir</button>
+                        </div>
+                    </div>
+                )}
+
+                {stage === 'review' && !missingData && currentReview && (
+                    <div className="space-y-4 pb-10">
+                        {/* Compact Review Top Actions */}
+                        <div className="flex justify-between items-center px-2">
+                            <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>Revision Manual</h2>
+                            <div className="flex gap-2">
+                                {reviewQueue.length > 1 && <span className="px-3 py-1.5 text-xs font-bold bg-blue-900 text-blue-300 rounded-full">{reviewQueue.length} pendientes</span>}
+                                <button onClick={handleReject} disabled={submitting} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-red-600 text-white hover:bg-red-500 transition">Ignorar / Filtrar</button>
+                                <button onClick={handleApprove} disabled={submitting} className="px-6 py-1.5 rounded-lg font-bold text-xs shadow hover:opacity-90 transition" style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>Enviar Aplicacion</button>
+                            </div>
+                        </div>
+
+                        {/* Job Snippet */}
+                        {currentReview.job && (
+                            <div className="rounded-xl p-4 cursor-pointer hover:bg-opacity-80 transition" style={card} onClick={() => setJobExpanded(!jobExpanded)}>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-bold">{currentReview.job.title}</h3>
+                                        <p className="text-xs text-gray-400 mt-1">{currentReview.job.company} | Salario: {currentReview.job.quick_facts?.salary || 'N/A'}</p>
+                                    </div>
+                                    <span className="text-xs text-gray-500">{jobExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}</span>
+                                </div>
+                                {jobExpanded && (
+                                    <div className="mt-4 pt-4 border-t border-gray-700 text-sm whitespace-pre-wrap text-gray-300">
+                                        {typeof currentReview.job.ai_summary === 'object' ? currentReview.job.ai_summary.description : currentReview.job.ai_summary || currentReview.job.description}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Answers Form */}
+                        {currentReview.answers && (
+                            <div className="rounded-xl p-5 space-y-4" style={card}>
+                                <h3 className="font-bold mb-3 border-b border-gray-700 pb-2">Respuestas Sugeridas ({Object.keys(currentReview.answers).length})</h3>
+                                {Object.entries(currentReview.answers).map(([q, data], i) => (
+                                    <div key={i} className="mb-4">
+                                        <label className="block text-sm font-semibold mb-1 text-gray-300">{i + 1}. {q}</label>
+                                        <input type="text" value={editedAnswers[q] || ''} onChange={e => updateAnswer(q, e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
 
-            {/* Controls */}
-            <div className="rounded-xl p-5 space-y-4" style={card}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Modo</label>
-                        <select value={mode} onChange={e => setMode(e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm" style={input}>
-                            <option value="apply">Aplicar</option>
-                            <option value="dry-run-llm">Dry-Run LLM</option>
-                            <option value="semi-auto">Semi-Auto</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Max. aplicaciones</label>
-                        <input type="number" value={maxApps} onChange={e => setMaxApps(Number(e.target.value))}
-                            className="w-full rounded-lg px-3 py-2 text-sm" style={input} min={1} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>Keyword</label>
-                        <input type="text" value={keyword} onChange={e => setKeyword(e.target.value)}
-                            placeholder="ej: ingeniero" className="w-full rounded-lg px-3 py-2 text-sm" style={input} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--text-secondary)' }}>CV</label>
-                        <select value={cv} onChange={e => setCv(e.target.value)}
-                            className="w-full rounded-lg px-3 py-2 text-sm" style={input}>
-                            <option value="">Auto (default)</option>
-                            {cvs.map(c => <option key={c.filename} value={c.filename}>{c.filename}</option>)}
-                        </select>
-                    </div>
+            {/* Sticky Log Terminal Fixed Bottom */}
+            <div className="shrink-0 rounded-xl overflow-hidden mt-2 p-1" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+                <div className="flex justify-between items-center px-3 py-1 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Terminal output</span>
+                    <button onClick={clearLogs} className="text-[10px] hover:text-white transition text-gray-500">Limpiar</button>
                 </div>
-
-                <div className="flex gap-3 pt-2">
-                    {!isRunning ? (
-                        <button onClick={startBot} disabled={loading}
-                            className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
-                            style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
-                            Iniciar Bot
-                        </button>
-                    ) : (
-                        <>
-                            <button onClick={async () => {
-                                const endpoint = status.status === 'paused_user' ? `${API}/bot/resume` : `${API}/bot/pause`
-                                setLoading(true)
-                                await fetch(endpoint, { method: 'POST' })
-                                const s = await fetch(`${API}/bot/status`).then(r => r.json())
-                                setStatus(prev => ({ ...prev, ...s }))
-                                setLoading(false)
-                            }} disabled={loading}
-                                className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
-                                style={{ background: status.status === 'paused_user' ? 'var(--success)' : 'var(--warning)', color: '#fff' }}>
-                                {status.status === 'paused_user' ? 'Reanudar' : 'Pausar'}
-                            </button>
-                            <button onClick={stopBot} disabled={loading}
-                                className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
-                                style={{ background: 'var(--error)', color: '#fff' }}>
-                                Detener
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Report link */}
-            {reportUrl && (
-                <div className="rounded-xl p-4 flex items-center gap-3"
-                    style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid var(--success)' }}>
-                    <span className="font-semibold text-sm" style={{ color: 'var(--success)' }}>Informe generado</span>
-                    <a href={reportUrl} target="_blank" rel="noopener noreferrer"
-                        className="px-4 py-1.5 rounded-lg text-sm font-semibold hover:opacity-90 transition"
-                        style={{ background: 'var(--success)', color: '#fff' }}>
-                        Abrir Informe
-                    </a>
-                </div>
-            )}
-
-            {/* Pending review Banner -- redirect to Review page for full context */}
-            {status.pending_confirmation && (
-                <div className="rounded-xl p-5 space-y-3"
-                    style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)' }}>
-                    <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full bg-yellow-500 animate-pulse" />
-                        <h3 className="font-bold" style={{ color: 'var(--warning)' }}>Oferta pendiente de revision</h3>
-                    </div>
-                    {status.pending_confirmation.data?.job && (
-                        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                            <strong>{status.pending_confirmation.data.job.title}</strong> en <strong>{status.pending_confirmation.data.job.company || '?'}</strong>
-                            {status.pending_confirmation.data.answers && (
-                                <span> | {Object.keys(status.pending_confirmation.data.answers).length} preguntas</span>
-                            )}
-                        </div>
-                    )}
-                    <button onClick={() => navigate('/review')}
-                        className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition"
-                        style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
-                        Ir a Revision (ver detalles y aprobar/rechazar)
-                    </button>
-                </div>
-            )}
-
-            {/* Live logs */}
-            <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-                <div className="flex items-center justify-between px-4 py-2" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
-                    <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Logs en vivo</span>
-                    <button onClick={clearLogs} className="text-xs hover:opacity-80" style={{ color: 'var(--text-muted)' }}>Limpiar</button>
-                </div>
-                <div ref={logsRef} className="h-72 overflow-y-auto p-4 font-mono text-xs leading-relaxed space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
-                    {logs.length === 0 && <p className="italic" style={{ color: 'var(--text-muted)' }}>Sin logs aun. Inicia el bot para ver la actividad.</p>}
+                <div
+                    ref={logsRef}
+                    onScroll={handleLogScroll}
+                    className="overflow-y-auto p-2 font-mono text-[11px] leading-relaxed space-y-[2px]"
+                    style={{ height: '110px', color: 'var(--text-secondary)' }}
+                >
+                    {logs.length === 0 && <span className="italic text-gray-600">Esperando ordenes...</span>}
                     {logs.map((line, i) => (
                         <div key={i} style={{
                             color: line.includes('[ERROR]') ? 'var(--error)' :
                                 line.includes('[SYSTEM]') ? 'var(--accent)' :
                                     line.includes('[WARN]') ? 'var(--warning)' :
                                         line.includes('[OK]') ? 'var(--success)' :
-                                            line.includes('[REPORT]') ? 'var(--success)' : undefined,
-                            fontWeight: line.includes('[REPORT]') ? 600 : undefined,
+                                            line.includes('[REPORT]') ? 'var(--success)' : undefined
                         }}>{line}</div>
                     ))}
                 </div>
