@@ -44,6 +44,7 @@ export default function Dashboard() {
     const [missingAnswer, setMissingAnswer] = useState('')
     const [detectedQuestions, setDetectedQuestions] = useState(null)
     const [timeLeft, setTimeLeft] = useState(300)
+    const [reviewTimeLeft, setReviewTimeLeft] = useState(300)
     const [jobExpanded, setJobExpanded] = useState(true)
     const [viewMode, setViewMode] = useState('original')
     const [openSections, setOpenSections] = useState(new Set(['description']))
@@ -214,6 +215,25 @@ export default function Dashboard() {
         setMissingAnswer('')
     }
 
+    // Manual Review Timer
+    useEffect(() => {
+        if (!currentReview || status.status === 'paused_user') {
+            setReviewTimeLeft(300)
+            return
+        }
+        const timer = setInterval(() => {
+            setReviewTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer)
+                    handleReject() // Auto reject when timeout
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+        return () => clearInterval(timer)
+    }, [currentReview, status.status, handleReject])
+
     const updateAnswer = (question, value) => {
         setEditedAnswers(prev => ({ ...prev, [question]: value }))
     }
@@ -369,7 +389,7 @@ export default function Dashboard() {
                         </div>
                         <div className="flex justify-center gap-3">
                             <button onClick={pauseResumeBot} disabled={loading} className="px-8 py-2.5 rounded-lg text-sm font-bold transition hover:opacity-90 shadow-lg" style={{ background: 'var(--success)', color: '#fff' }}>
-                                Reanudar Bot
+                                {loading ? 'Reanudando...' : 'Reanudar Bot'}
                             </button>
                             <button onClick={stopBot} disabled={loading} className="px-6 py-2.5 rounded-lg text-sm font-semibold transition hover:opacity-90" style={{ background: 'var(--error)', color: '#fff' }}>
                                 Detener
@@ -461,14 +481,24 @@ export default function Dashboard() {
                     <div className="space-y-4 pb-10">
                         {/* Compact Review Top Actions */}
                         <div className="flex justify-between items-center px-2">
-                            <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>Revision Manual</h2>
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>Revision Manual</h2>
+                                {!isAlreadyApplied && (
+                                    <div className="flex items-center gap-2 bg-gray-800/50 px-3 py-1 mt-1 rounded-full">
+                                        <div className={`w-2 h-2 rounded-full ${reviewTimeLeft < 60 ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                                        <span className={`text-xs font-mono font-bold ${reviewTimeLeft < 60 ? 'text-red-400' : 'text-yellow-400'}`}>
+                                            {Math.floor(reviewTimeLeft / 60)}:{(reviewTimeLeft % 60).toString().padStart(2, '0')}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex gap-2">
                                 {!isAlreadyApplied && (
                                     <>
                                         {isPausedState ? (
-                                            <button onClick={pauseResumeBot} disabled={loading} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-yellow-600 text-white hover:bg-yellow-500 transition shadow">Reanudar Bot</button>
+                                            <button onClick={pauseResumeBot} disabled={loading} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-yellow-600 text-white hover:bg-yellow-500 transition shadow">{loading ? '...' : 'Reanudar Bot'}</button>
                                         ) : (
-                                            <button onClick={pauseResumeBot} disabled={loading} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-yellow-600 text-white hover:bg-yellow-500 transition opacity-80 hover:opacity-100">Pausar</button>
+                                            <button onClick={pauseResumeBot} disabled={loading} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-yellow-600 text-white hover:bg-yellow-500 transition opacity-80 hover:opacity-100">{loading ? '...' : 'Pausar'}</button>
                                         )}
                                         {reviewQueue.length > 1 && <span className="px-3 py-1.5 text-xs font-bold bg-blue-900 text-blue-300 rounded-full">{reviewQueue.length} pendientes</span>}
                                         <button onClick={handleReject} disabled={submitting} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-red-600 text-white hover:bg-red-500 transition">Ignorar / Filtrar</button>
@@ -487,30 +517,140 @@ export default function Dashboard() {
                         ) : (
                             <>
                                 {/* Job Snippet */}
-                                {currentReview.job && (
-                                    <div className="rounded-xl p-4 cursor-pointer hover:bg-opacity-80 transition" style={card} onClick={() => setJobExpanded(!jobExpanded)}>
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <h3 className="font-bold">{currentReview.job.title}</h3>
-                                                <p className="text-xs text-gray-400 mt-1">{currentReview.job.company} | Salario: {currentReview.job.quick_facts?.salary || 'N/A'}</p>
-                                            </div>
-                                            <span className="text-xs text-gray-500">{jobExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}</span>
-                                        </div>
-                                        {jobExpanded && (
-                                            <div className="mt-4 pt-4 border-t border-gray-700 text-sm whitespace-pre-wrap text-gray-300">
-                                                {hasEmptyData ? (
-                                                    <div className="p-4 rounded-lg bg-orange-900/20 border border-orange-500/30 flex flex-col items-center justify-center text-center space-y-2 mt-2">
-                                                        <span className="text-2xl">⚠️</span>
-                                                        <span className="font-bold text-orange-400">No se pudo extraer información de esta oferta.</span>
-                                                        <span className="text-xs text-orange-300/80">Puedes revisar la oferta directamente en el BotStream o rechazarla para continuar con la siguiente.</span>
+                                {currentReview.job && (() => {
+                                    const job = currentReview.job;
+                                    const qf = job.quick_facts || {};
+                                    const aiSummary = (typeof job.ai_summary === 'object' && job.ai_summary !== null) ? job.ai_summary : {};
+                                    const aiQf = aiSummary;
+
+                                    const origSections = job.sections || {};
+                                    const aiSections = {
+                                        description: aiSummary.description || '',
+                                        requirements: aiSummary.requirements || '',
+                                        responsibilities: aiSummary.responsibilities || '',
+                                        benefits: aiSummary.benefits || '',
+                                        keywords: aiSummary.keywords || '',
+                                    };
+
+                                    return (
+                                        <div className="rounded-xl overflow-hidden shadow" style={card}>
+                                            <button onClick={() => setJobExpanded(!jobExpanded)}
+                                                className="w-full flex items-center justify-between px-5 py-4 text-left hover:opacity-90 transition"
+                                                style={{ background: 'var(--bg-card)' }}>
+                                                <div>
+                                                    <h3 className="font-bold text-lg" style={{ color: 'var(--accent)' }}>{job.title || 'Sin titulo'}</h3>
+                                                    <div className="flex flex-wrap gap-2 mt-1">
+                                                        {job.company && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(139,92,246,0.15)', color: 'var(--accent-purple)' }}>{job.company}</span>}
+                                                        {(job.location || qf.location) && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent)' }}>{job.location || qf.location}</span>}
+                                                        {(job.salary || qf.salary) && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--success)' }}>{job.salary || qf.salary}</span>}
                                                     </div>
-                                                ) : (
-                                                    typeof currentReview.job.ai_summary === 'object' ? currentReview.job.ai_summary.description : currentReview.job.ai_summary || currentReview.job.description
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                                </div>
+                                                <span className="text-xs text-gray-500">{jobExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}</span>
+                                            </button>
+
+                                            {jobExpanded && (
+                                                <div style={{ borderTop: '1px solid var(--border)' }}>
+                                                    {hasEmptyData ? (
+                                                        <div className="p-4 rounded-lg bg-orange-900/20 border border-orange-500/30 flex flex-col items-center justify-center text-center space-y-2 m-4">
+                                                            <span className="text-2xl">⚠️</span>
+                                                            <span className="font-bold text-orange-400">No se pudo extraer información detallada de esta oferta.</span>
+                                                            <span className="text-xs text-orange-300/80">Puedes revisar la oferta directamente en el BotStream o rechazarla para continuar con la siguiente.</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="review-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 30%) 1fr', gap: '0', minHeight: '380px' }}>
+                                                            {/* ZONA IZQUIERDA — Datos rapidos */}
+                                                            <div className="px-4 py-3" style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+                                                                <div className="text-xs font-bold mb-3" style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Datos rápidos</div>
+                                                                <div className="space-y-2">
+                                                                    {[
+                                                                        { icon: '\uD83D\uDCB0', label: 'Salario', value: qf.salary || aiQf.salario },
+                                                                        { icon: '\uD83D\uDCC4', label: 'Contrato', value: qf.contract || aiQf.contrato },
+                                                                        { icon: '\uD83D\uDD50', label: 'Jornada', value: qf.schedule || aiQf.jornada },
+                                                                        { icon: '\uD83D\uDCCD', label: 'Ubicacion', value: qf.location || job.location || aiQf.ubicacion },
+                                                                        { icon: '\uD83C\uDF93', label: 'Educacion', value: qf.education || aiQf.educacion },
+                                                                        { icon: '\u231B', label: 'Experiencia', value: qf.experience || aiQf.experiencia },
+                                                                        { icon: '\uD83C\uDFE2', label: 'Modalidad', value: qf.modality || aiQf.modalidad },
+                                                                        { icon: '\uD83D\uDCC5', label: 'Publicacion', value: qf.date || aiQf.fecha },
+                                                                    ].filter(item => item.value).map((item, idx) => (
+                                                                        <div key={idx} className="flex items-start gap-2 p-2 rounded-lg shadow-sm" style={{ background: 'var(--bg-card)' }}>
+                                                                            <span className="text-base shrink-0 mt-0.5">{item.icon}</span>
+                                                                            <div className="min-w-0">
+                                                                                <div className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)', textTransform: 'uppercase' }}>{item.label}</div>
+                                                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)', wordBreak: 'break-word' }}>{item.value}</div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    {![qf.salary, qf.contract, qf.schedule, qf.location, job.location, qf.education, qf.experience, qf.modality, qf.date, aiQf.salario, aiQf.contrato, aiQf.jornada, aiQf.ubicacion, aiQf.educacion, aiQf.experiencia, aiQf.modalidad, aiQf.fecha].some(Boolean) && (
+                                                                        <div className="text-xs italic p-2" style={{ color: 'var(--text-muted)' }}>Sin datos rápidos disponibles.</div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* ZONA DERECHA — Toggle + Acordeon */}
+                                                            <div className="flex flex-col overflow-hidden">
+                                                                <div className="flex gap-0 px-4 pt-3 pb-2">
+                                                                    {['original', 'ai'].map(mode => (
+                                                                        <button key={mode} onClick={() => setViewMode(mode)}
+                                                                            className="px-5 py-2 text-xs font-bold transition-all rounded-t-lg"
+                                                                            style={{
+                                                                                background: viewMode === mode ? (mode === 'original' ? 'rgba(59,130,246,0.15)' : 'rgba(139,92,246,0.15)') : 'transparent',
+                                                                                color: viewMode === mode ? (mode === 'original' ? 'var(--accent)' : 'var(--accent-purple)') : 'var(--text-muted)',
+                                                                                borderBottom: `2px solid ${viewMode === mode ? (mode === 'original' ? 'var(--accent)' : 'var(--accent-purple)') : 'transparent'}`,
+                                                                            }}>
+                                                                            {mode === 'original' ? 'Texto Original' : 'Resumen IA'}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+
+                                                                <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 custom-scrollbar" style={{ maxHeight: '420px' }}>
+                                                                    {(() => {
+                                                                        const sec = viewMode === 'original' ? origSections : aiSections;
+                                                                        const sectionDefs = [
+                                                                            { key: 'description', label: 'Descripcion del cargo' },
+                                                                            { key: 'requirements', label: 'Perfil requerido / Requisitos' },
+                                                                            { key: 'responsibilities', label: 'Responsabilidades principales' },
+                                                                            { key: 'benefits', label: 'Compensacion y beneficios' },
+                                                                            { key: 'keywords', label: 'Palabras clave' },
+                                                                        ];
+                                                                        const rendered = sectionDefs.filter(sd => sec[sd.key]);
+                                                                        if (rendered.length === 0) {
+                                                                            return (
+                                                                                <div className="text-sm italic p-4" style={{ color: 'var(--text-muted)' }}>
+                                                                                    {viewMode === 'original' ? (job.description || 'Sin contenido disponible.') : (typeof job.ai_summary === 'string' ? job.ai_summary : 'Sin resumen IA disponible.')}
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                        return rendered.map(({ key, label }) => {
+                                                                            const isOpen = openSections.has(key);
+                                                                            return (
+                                                                                <div key={key} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                                                                    <button onClick={() => setOpenSections(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next; })}
+                                                                                        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:opacity-90 transition"
+                                                                                        style={{ background: isOpen ? 'var(--bg-hover)' : 'var(--bg-card)' }}>
+                                                                                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{label}</span>
+                                                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                                                                            style={{ color: 'var(--text-muted)', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
+                                                                                            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                                                                                        </svg>
+                                                                                    </button>
+                                                                                    {isOpen && (
+                                                                                        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap custom-scrollbar" style={{ color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', maxHeight: '300px', overflowY: 'auto', wordBreak: 'break-word' }}>
+                                                                                            {sec[key]}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        });
+                                                                    })()}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Answers Form */}
                                 {currentReview.answers && (
@@ -531,16 +671,16 @@ export default function Dashboard() {
             </div>
 
             {/* Sticky Log Terminal Fixed Bottom */}
-            <div className="shrink-0 rounded-xl overflow-hidden mt-2 p-1" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
-                <div className="flex justify-between items-center px-3 py-1 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="shrink-0 rounded-xl mt-2 p-1 flex flex-col shadow-inner relative" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', resize: 'vertical', overflow: 'hidden', minHeight: '80px', maxHeight: '400px', height: '140px' }}>
+                <div className="flex justify-between items-center px-3 py-1 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
                     <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Terminal output</span>
                     <button onClick={clearLogs} className="text-[10px] hover:text-white transition text-gray-500">Limpiar</button>
                 </div>
                 <div
                     ref={logsRef}
                     onScroll={handleLogScroll}
-                    className="overflow-y-auto p-2 font-mono text-[11px] leading-relaxed space-y-[2px]"
-                    style={{ height: '110px', color: 'var(--text-secondary)' }}
+                    className="overflow-y-auto p-2 font-mono text-[11px] leading-relaxed space-y-[2px] flex-1 custom-scrollbar"
+                    style={{ color: 'var(--text-secondary)' }}
                 >
                     {logs.length === 0 && <span className="italic text-gray-600">Esperando ordenes...</span>}
                     {logs.map((line, i) => (

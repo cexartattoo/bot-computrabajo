@@ -149,6 +149,43 @@
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
   }
+
+  /* ─── ESPERANDO: robot flota suave ─── */
+  .bot-waiting {
+    animation: float-wait 3s ease-in-out infinite;
+  }
+  @keyframes float-wait {
+    0%, 100% { transform: translateY(0px); }
+    50%      { transform: translateY(-5px); }
+  }
+
+  /* ─── ESPERANDO: anillo pulsa lento ─── */
+  .wait-ring-outer {
+    animation: wait-pulse-ring 2.5s ease-in-out infinite;
+    transform-origin: 80px 80px;
+  }
+  @keyframes wait-pulse-ring {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(1.03); }
+  }
+
+  /* ─── ESPERANDO: icono persona sube/baja ─── */
+  .person-icon {
+    animation: person-bob 2s ease-in-out infinite;
+  }
+  @keyframes person-bob {
+    0%, 100% { transform: translateY(0); opacity: 0.9; }
+    50%      { transform: translateY(-3px); opacity: 1; }
+  }
+
+  /* ─── ESPERANDO: flecha pulsa ─── */
+  .arrow-ping {
+    animation: arrow-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes arrow-pulse {
+    0%, 100% { opacity: 0.3; transform: translateX(0); }
+    50%      { opacity: 1; transform: translateX(3px); }
+  }
 </style>
 </head>
 <body>
@@ -171,21 +208,15 @@
       </filter>
     </defs>
 
-    <!-- Fondo con glow apagado -->
     <circle cx="80" cy="80" r="75" fill="url(#bg_off)" stroke="#22223a" stroke-width="1.5"/>
-    <!-- Halo muerto -->
     <circle cx="80" cy="80" r="71" fill="none" stroke="#2a2a44" stroke-width="0.5" stroke-dasharray="4 8" opacity="0.4"/>
 
-    <!-- Cuerpo -->
     <rect x="44" y="68" width="72" height="52" rx="10" fill="#181828" stroke="#2a2a42" stroke-width="1.5"/>
-    <!-- Cabeza -->
     <rect x="52" y="38" width="56" height="38" rx="9" fill="#181828" stroke="#2a2a42" stroke-width="1.5"/>
 
-    <!-- Antena -->
     <line x1="80" y1="38" x2="80" y2="26" stroke="#2a2a42" stroke-width="2" stroke-linecap="round"/>
     <circle cx="80" cy="23" r="4" fill="#1a1a2e" stroke="#2a2a42" stroke-width="1.5"/>
 
-    <!-- Ojos X con glow muerto -->
     <g class="eye-dead">
       <line x1="62" y1="52" x2="70" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
       <line x1="70" y1="52" x2="62" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
@@ -193,30 +224,23 @@
       <line x1="98" y1="52" x2="90" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
     </g>
 
-    <!-- Boca plana/triste -->
     <path d="M 67 73 Q 80 69 93 73" stroke="#2a2a44" stroke-width="1.8" fill="none" stroke-linecap="round"/>
 
-    <!-- Panel pecho -->
     <rect x="54" y="82" width="52" height="26" rx="5" fill="#111120" stroke="#202038" stroke-width="1"/>
 
-    <!-- Indicadores muertos con glitch sutil -->
     <circle cx="66" cy="95" r="5" fill="#0e0e1e" stroke="#222" stroke-width="1"/>
     <circle cx="80" cy="95" r="5" fill="#0e0e1e" stroke="#222" stroke-width="1"/>
     <circle cx="94" cy="95" r="5" fill="#0e0e1e" stroke="#222" stroke-width="1"/>
 
-    <!-- Scanline de ruido en pecho -->
     <rect x="55" y="90" width="50" height="1" fill="#4040ff" opacity="0.06">
       <animate attributeName="y" values="83;107;83" dur="3s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="0;0.12;0" dur="3s" repeatCount="indefinite"/>
     </rect>
 
-    <!-- Brazos caídos -->
     <rect x="26" y="74" width="18" height="10" rx="5" fill="#181828" stroke="#2a2a42" stroke-width="1.5" transform="rotate(20 35 79)"/>
     <rect x="116" y="74" width="18" height="10" rx="5" fill="#181828" stroke="#2a2a42" stroke-width="1.5" transform="rotate(-20 125 79)"/>
 
-    <!-- Label -->
     <text x="80" y="138" text-anchor="middle" fill="#2a2a44" font-size="10" font-family="monospace" font-weight="bold" letter-spacing="2">OFFLINE</text>
-    <!-- Cursor parpadeante -->
     <rect x="103" y="129" width="6" height="8" fill="#2a2a44">
       <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>
     </rect>
@@ -245,10 +269,8 @@
       </filter>
     </defs>
 
-    <!-- Fondo -->
     <circle cx="80" cy="80" r="75" fill="url(#bg_load)" stroke="#0f2550" stroke-width="1.5"/>
 
-    <!-- Anillo exterior orbitando — 2 capas -->
     <g class="orbit-glow">
       <circle cx="80" cy="80" r="71" fill="none" stroke="#1848cc" stroke-width="2.5"
               stroke-dasharray="90 354" stroke-linecap="round" opacity="0.7"/>
@@ -257,31 +279,25 @@
       <circle cx="80" cy="80" r="71" fill="none" stroke="#4488ff" stroke-width="1.5"
               stroke-dasharray="40 404" stroke-linecap="round" opacity="0.9"/>
     </g>
-    <!-- Anillo medio -->
     <circle cx="80" cy="80" r="64" fill="none" stroke="#0a2060" stroke-width="1" stroke-dasharray="6 10" opacity="0.5">
       <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="-360 80 80" dur="8s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Cuerpo -->
     <rect x="44" y="68" width="72" height="52" rx="10" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5"/>
-    <!-- Cabeza -->
     <rect x="52" y="38" width="56" height="38" rx="9" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5"/>
 
-    <!-- Antena -->
     <line x1="80" y1="38" x2="80" y2="26" stroke="#4488ff" stroke-width="2" stroke-linecap="round"/>
     <circle cx="80" cy="23" r="4" fill="#1050cc" filter="url(#glow_blue)">
       <animate attributeName="r" values="4;5.5;4" dur="1s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Ojos: cargando con brillo -->
     <circle cx="66" cy="56" r="7" fill="url(#eye_glow)" filter="url(#glow_blue)">
       <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.2s" repeatCount="indefinite"/>
     </circle>
     <circle cx="94" cy="56" r="7" fill="url(#eye_glow)" filter="url(#glow_blue)">
       <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.2s" begin="0.6s" repeatCount="indefinite"/>
     </circle>
-    <!-- Pupila ojos -->
     <circle cx="66" cy="56" r="3" fill="#88bbff" opacity="0.6">
       <animate attributeName="cx" values="64;68;64" dur="2s" repeatCount="indefinite"/>
     </circle>
@@ -289,28 +305,21 @@
       <animate attributeName="cx" values="92;96;92" dur="2s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Boca cargando -->
     <rect x="68" y="70" width="24" height="3" rx="1.5" fill="#1a4088"/>
-    <!-- Animación de "habla" en boca -->
     <rect x="68" y="70" width="8" height="3" rx="1.5" fill="#4488ff" opacity="0.8">
       <animate attributeName="width" values="0;24;0" dur="1.6s" repeatCount="indefinite"/>
     </rect>
 
-    <!-- Panel pecho -->
     <rect x="54" y="82" width="52" height="26" rx="5" fill="#07101e" stroke="#0f2a5a" stroke-width="1"/>
-
-    <!-- Scanline sobre pecho -->
     <rect x="55" y="83" width="50" height="1.5" fill="#3366ff" opacity="0.4" rx="0.5">
       <animate attributeName="y" values="83;106;83" dur="1.4s" repeatCount="indefinite"/>
     </rect>
 
-    <!-- Barra de progreso -->
     <rect x="58" y="90" width="44" height="4" rx="2" fill="#050f1e"/>
     <rect x="58" y="90" width="2" height="4" rx="2" fill="#4488ff" filter="url(#glow_blue)">
       <animate attributeName="width" values="2;44;2" dur="2s" repeatCount="indefinite"/>
     </rect>
 
-    <!-- Puntos de estado -->
     <circle cx="66" cy="102" r="3.5" fill="#1030aa">
       <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0s" repeatCount="indefinite"/>
       <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0s" repeatCount="indefinite"/>
@@ -324,7 +333,6 @@
       <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0.6s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Partículas orbitando -->
     <circle cx="80" cy="9" r="2.5" fill="#4488ff" opacity="0.7">
       <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="3s" repeatCount="indefinite"/>
       <animate attributeName="opacity" values="0.7;0.1;0.7" dur="3s" repeatCount="indefinite"/>
@@ -336,7 +344,6 @@
       <animateTransform attributeName="transform" type="rotate" from="240 80 80" to="600 80 80" dur="3s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Brazos con vibración -->
     <rect x="26" y="72" width="18" height="10" rx="5" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5">
       <animate attributeName="y" values="72;71;73;72" dur="0.4s" repeatCount="indefinite"/>
     </rect>
@@ -344,9 +351,7 @@
       <animate attributeName="y" values="72;73;71;72" dur="0.4s" repeatCount="indefinite"/>
     </rect>
 
-    <!-- Label animado -->
     <text x="80" y="138" text-anchor="middle" fill="#1a4088" font-size="10" font-family="monospace" font-weight="bold" letter-spacing="2">INICIANDO</text>
-    <!-- Puntos del label -->
     <circle cx="118" cy="134" r="2" fill="#4488ff">
       <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0s" repeatCount="indefinite"/>
     </circle>
@@ -377,54 +382,41 @@
       </filter>
     </defs>
 
-    <!-- Fondo -->
     <circle cx="80" cy="80" r="75" fill="url(#bg_done)" stroke="#153520" stroke-width="1.5"/>
 
-    <!-- Anillo de éxito -->
     <circle class="check-glow" cx="80" cy="80" r="68" fill="none" stroke="#22dd44" stroke-width="1.5" opacity="0.15"/>
-    <!-- Segundo anillo girando lento -->
     <circle cx="80" cy="80" r="71" fill="none" stroke="#1a8830" stroke-width="1"
             stroke-dasharray="12 20" opacity="0.3">
       <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="12s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Cuerpo -->
     <rect x="44" y="68" width="72" height="52" rx="10" fill="#0e2018" stroke="#1a5028" stroke-width="1.5"/>
-    <!-- Cabeza -->
     <rect x="52" y="38" width="56" height="38" rx="9" fill="#0e2018" stroke="#1a5028" stroke-width="1.5"/>
 
-    <!-- Antena -->
     <line x1="80" y1="38" x2="80" y2="26" stroke="#22cc44" stroke-width="2" stroke-linecap="round"/>
     <circle cx="80" cy="23" r="4" fill="#1a8830" stroke="#22cc44" stroke-width="1" filter="url(#glow_green)">
       <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Ojos satisfechos -->
     <path d="M 60 58 Q 66 52 72 58" stroke="#22cc44" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow_green)"/>
     <path d="M 88 58 Q 94 52 100 58" stroke="#22cc44" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow_green)"/>
 
-    <!-- Boca sonriente grande -->
     <path d="M 65 70 Q 80 80 95 70" stroke="#22cc44" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow_green)"/>
 
-    <!-- Panel pecho -->
     <rect x="54" y="82" width="52" height="26" rx="5" fill="#071208" stroke="#124020" stroke-width="1"/>
 
-    <!-- Check mark con glow -->
     <path d="M 65 95 L 76 105 L 97 83" stroke="#22cc44" stroke-width="3" fill="none"
           stroke-linecap="round" stroke-linejoin="round" filter="url(#glow_green)">
       <animate attributeName="stroke-dasharray" values="0 60;60 0" dur="0.6s" fill="freeze"/>
     </path>
 
-    <!-- Brazos relajados -->
     <rect x="26" y="76" width="18" height="10" rx="5" fill="#0e2018" stroke="#1a5028" stroke-width="1.5" transform="rotate(12 35 81)"/>
     <rect x="116" y="76" width="18" height="10" rx="5" fill="#0e2018" stroke="#1a5028" stroke-width="1.5" transform="rotate(-12 125 81)"/>
 
-    <!-- ZZZ flotando -->
     <text class="zzz1" x="108" y="48" fill="#22cc44" font-size="9" font-family="monospace" opacity="0.8">z</text>
     <text class="zzz2" x="116" y="40" fill="#22cc44" font-size="11" font-family="monospace" opacity="0.6">z</text>
     <text class="zzz3" x="126" y="31" fill="#22cc44" font-size="13" font-family="monospace" opacity="0.4">z</text>
 
-    <!-- Label -->
     <text x="80" y="138" text-anchor="middle" fill="#1a5028" font-size="10" font-family="monospace" font-weight="bold" letter-spacing="2">COMPLETADO</text>
   </svg>
   <span class="label">Completado</span>
@@ -447,15 +439,12 @@
       </filter>
     </defs>
 
-    <!-- Fondo -->
     <circle cx="40" cy="40" r="38" fill="url(#bg_pause)" stroke="#7a4400" stroke-width="1.5"/>
 
-    <!-- Anillo exterior orbitando -->
     <g class="pause-ring">
       <circle cx="40" cy="40" r="36" fill="none" stroke="#cc8800" stroke-width="1.5"
               stroke-dasharray="30 196" stroke-linecap="round" opacity="0.7"/>
     </g>
-    <!-- Puntos orbitales -->
     <circle cx="40" cy="4" r="2.5" fill="#ffaa00" opacity="0.8">
       <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="4s" repeatCount="indefinite"/>
     </circle>
@@ -463,12 +452,10 @@
       <animateTransform attributeName="transform" type="rotate" from="180 40 40" to="540 40 40" dur="4s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Brillo interior -->
     <circle cx="40" cy="40" r="30" fill="none" stroke="#ff8800" stroke-width="0.5" opacity="0.15">
       <animate attributeName="opacity" values="0.15;0.35;0.15" dur="2s" repeatCount="indefinite"/>
     </circle>
 
-    <!-- Barras de pausa -->
     <g style="transform-origin: 29px 40px">
       <rect class="pause-bar-l" x="22" y="22" width="12" height="36" rx="4"
             fill="#ffaa00" filter="url(#glow_amber)" style="transform-origin: 28px 40px"/>
@@ -479,6 +466,145 @@
     </g>
   </svg>
   <span class="label">Pausa</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     ESPERANDO USUARIO  ← NUEVO
+════════════════════════════════════════ -->
+<div class="card">
+  <svg class="bot-waiting" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bg_wait" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#1a0e30"/>
+        <stop offset="100%" stop-color="#0c0718"/>
+      </radialGradient>
+      <radialGradient id="eye_wait" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#cc88ff"/>
+        <stop offset="100%" stop-color="#7722cc"/>
+      </radialGradient>
+      <filter id="glow_purple" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3.5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow_purple_soft" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="2" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- Fondo -->
+    <circle cx="80" cy="80" r="75" fill="url(#bg_wait)" stroke="#3a1a6a" stroke-width="1.5"/>
+
+    <!-- Anillo exterior pulsante -->
+    <circle class="wait-ring-outer" cx="80" cy="80" r="71" fill="none" stroke="#9944ff"
+            stroke-width="1.5" stroke-dasharray="18 14" stroke-linecap="round" opacity="0.35"/>
+
+    <!-- Anillo medio girando despacio -->
+    <circle cx="80" cy="80" r="65" fill="none" stroke="#6622cc" stroke-width="0.8"
+            stroke-dasharray="8 18" opacity="0.25">
+      <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="16s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Partícula orbital -->
+    <circle cx="80" cy="9" r="2.5" fill="#bb66ff" opacity="0.8">
+      <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.8;0.2;0.8" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="80" cy="9" r="1.5" fill="#9933ff" opacity="0.5">
+      <animateTransform attributeName="transform" type="rotate" from="200 80 80" to="560 80 80" dur="5s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Cuerpo robot -->
+    <rect x="44" y="68" width="72" height="52" rx="10" fill="#160d28" stroke="#4a1a9a" stroke-width="1.5"/>
+    <!-- Cabeza -->
+    <rect x="52" y="38" width="56" height="38" rx="9" fill="#160d28" stroke="#4a1a9a" stroke-width="1.5"/>
+
+    <!-- Antena parpadeante -->
+    <line x1="80" y1="38" x2="80" y2="26" stroke="#9944ff" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="80" cy="23" r="4" fill="#5a18bb" stroke="#aa55ff" stroke-width="1" filter="url(#glow_purple)">
+      <animate attributeName="r" values="4;5.5;4" dur="2.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0.3;1" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Ojos: grandes, curiosos, con "?" pupila -->
+    <!-- Ojo izquierdo -->
+    <circle cx="66" cy="56" r="8" fill="url(#eye_wait)" filter="url(#glow_purple_soft)">
+      <animate attributeName="opacity" values="1;0.6;1" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <text x="63" y="60" fill="#fff" font-size="9" font-family="monospace" font-weight="bold" opacity="0.9">?</text>
+
+    <!-- Ojo derecho -->
+    <circle cx="94" cy="56" r="8" fill="url(#eye_wait)" filter="url(#glow_purple_soft)">
+      <animate attributeName="opacity" values="1;0.6;1" dur="3s" begin="0.4s" repeatCount="indefinite"/>
+    </circle>
+    <text x="91" y="60" fill="#fff" font-size="9" font-family="monospace" font-weight="bold" opacity="0.9">?</text>
+
+    <!-- Boca: línea recta con parpadeo "esperando" -->
+    <path d="M 68 71 Q 80 74 92 71" stroke="#7733cc" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+    <!-- Panel pecho -->
+    <rect x="54" y="82" width="52" height="26" rx="5" fill="#0e0718" stroke="#3a1070" stroke-width="1"/>
+
+    <!-- Icono de persona humana en el panel -->
+    <g class="person-icon">
+      <!-- Cabeza persona -->
+      <circle cx="80" cy="89" r="5" fill="none" stroke="#aa55ff" stroke-width="1.5" filter="url(#glow_purple_soft)"/>
+      <!-- Cuerpo persona -->
+      <path d="M 72 103 Q 72 96 80 96 Q 88 96 88 103" fill="none" stroke="#aa55ff" stroke-width="1.5"
+            stroke-linecap="round" filter="url(#glow_purple_soft)"/>
+    </g>
+
+    <!-- Brazos levantados (postura de pregunta/espera) -->
+    <rect x="26" y="68" width="18" height="10" rx="5" fill="#160d28" stroke="#4a1a9a" stroke-width="1.5"
+          transform="rotate(-25 35 73)"/>
+    <rect x="116" y="68" width="18" height="10" rx="5" fill="#160d28" stroke="#4a1a9a" stroke-width="1.5"
+          transform="rotate(25 125 73)"/>
+
+    <!-- Flechas apuntando al ícono de usuario (arriba del robot) -->
+    <!-- Flecha izquierda -->
+    <g class="arrow-ping">
+      <path d="M 108 38 L 114 32 L 120 38" stroke="#aa55ff" stroke-width="1.5" fill="none"
+            stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+      <line x1="114" y1="32" x2="114" y2="46" stroke="#aa55ff" stroke-width="1.5"
+            stroke-linecap="round" opacity="0.8"/>
+    </g>
+
+    <!-- Burbuja de chat flotando arriba-derecha -->
+    <g>
+      <rect x="106" y="14" width="38" height="20" rx="5" fill="#2a0e50" stroke="#8833dd" stroke-width="1"
+            opacity="0.85">
+        <animate attributeName="opacity" values="0.85;0.4;0.85" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <!-- Pico de burbuja -->
+      <path d="M 116 34 L 112 40 L 122 34" fill="#2a0e50" stroke="#8833dd" stroke-width="1"
+            stroke-linejoin="round" opacity="0.85">
+        <animate attributeName="opacity" values="0.85;0.4;0.85" dur="2s" repeatCount="indefinite"/>
+      </path>
+      <!-- Puntos dentro de la burbuja (typing indicator) -->
+      <circle cx="116" cy="24" r="2" fill="#cc77ff">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0s" repeatCount="indefinite"/>
+        <animate attributeName="r" values="2;2.8;2" dur="1.2s" begin="0s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="125" cy="24" r="2" fill="#cc77ff">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.4s" repeatCount="indefinite"/>
+        <animate attributeName="r" values="2;2.8;2" dur="1.2s" begin="0.4s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="134" cy="24" r="2" fill="#cc77ff">
+        <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.8s" repeatCount="indefinite"/>
+        <animate attributeName="r" values="2;2.8;2" dur="1.2s" begin="0.8s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- Label -->
+    <text x="80" y="136" text-anchor="middle" fill="#5a1a9a" font-size="8.5" font-family="monospace"
+          font-weight="bold" letter-spacing="1.5">ESPERANDO</text>
+    <!-- Cursor parpadeante al final -->
+    <rect x="112" y="128" width="5" height="7" rx="1" fill="#9944ff" opacity="0.7">
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </svg>
+  <span class="label">Esperando usuario</span>
 </div>
 
 </body>

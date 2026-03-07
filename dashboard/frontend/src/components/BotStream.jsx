@@ -298,6 +298,116 @@ function PauseOverlaySVG() {
     )
 }
 
+function BotWaitingUserSVG() {
+    return (
+        <svg className="bot-waiting" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ transform: 'scale(0.85)' }}>
+            <style>{`
+                .bot-waiting { animation: float-wait 3s ease-in-out infinite; }
+                @keyframes float-wait { 0%, 100% { transform: translateY(0px) scale(0.85); } 50% { transform: translateY(-5px) scale(0.85); } }
+                .wait-ring-outer { animation: wait-pulse-ring 2.5s ease-in-out infinite; transform-origin: 80px 80px; }
+                @keyframes wait-pulse-ring { 0%, 100% { opacity: 0.2; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.03); } }
+                .person-icon { animation: person-bob 2s ease-in-out infinite; }
+                @keyframes person-bob { 0%, 100% { transform: translateY(0); opacity: 0.9; } 50% { transform: translateY(-3px); opacity: 1; } }
+                .arrow-ping { animation: arrow-pulse 1.5s ease-in-out infinite; }
+                @keyframes arrow-pulse { 0%, 100% { opacity: 0.3; transform: translateX(0); } 50% { opacity: 1; transform: translateX(3px); } }
+            `}</style>
+            <defs>
+                <radialGradient id="bg_wait" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#1a0e30" />
+                    <stop offset="100%" stopColor="#0c0718" />
+                </radialGradient>
+                <radialGradient id="eye_wait" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#cc88ff" />
+                    <stop offset="100%" stopColor="#7722cc" />
+                </radialGradient>
+                <filter id="glow_purple" x="-60%" y="-60%" width="220%" height="220%">
+                    <feGaussianBlur stdDeviation="3.5" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <filter id="glow_purple_soft" x="-40%" y="-40%" width="180%" height="180%">
+                    <feGaussianBlur stdDeviation="2" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+            </defs>
+
+            <circle cx="80" cy="80" r="75" fill="url(#bg_wait)" stroke="#3a1a6a" strokeWidth="1.5" />
+            <circle className="wait-ring-outer" cx="80" cy="80" r="71" fill="none" stroke="#9944ff" strokeWidth="1.5" strokeDasharray="18 14" strokeLinecap="round" opacity="0.35" />
+            <circle cx="80" cy="80" r="65" fill="none" stroke="#6622cc" strokeWidth="0.8" strokeDasharray="8 18" opacity="0.25">
+                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="16s" repeatCount="indefinite" />
+            </circle>
+
+            <circle cx="80" cy="9" r="2.5" fill="#bb66ff" opacity="0.8">
+                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.8;0.2;0.8" dur="5s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="80" cy="9" r="1.5" fill="#9933ff" opacity="0.5">
+                <animateTransform attributeName="transform" type="rotate" from="200 80 80" to="560 80 80" dur="5s" repeatCount="indefinite" />
+            </circle>
+
+            <rect x="44" y="68" width="72" height="52" rx="10" fill="#160d28" stroke="#4a1a9a" strokeWidth="1.5" />
+            <rect x="52" y="38" width="56" height="38" rx="9" fill="#160d28" stroke="#4a1a9a" strokeWidth="1.5" />
+
+            <line x1="80" y1="38" x2="80" y2="26" stroke="#9944ff" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="80" cy="23" r="4" fill="#5a18bb" stroke="#aa55ff" strokeWidth="1" filter="url(#glow_purple)">
+                <animate attributeName="r" values="4;5.5;4" dur="2.5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;0.3;1" dur="2.5s" repeatCount="indefinite" />
+            </circle>
+
+            <circle cx="66" cy="56" r="8" fill="url(#eye_wait)" filter="url(#glow_purple_soft)">
+                <animate attributeName="opacity" values="1;0.6;1" dur="3s" repeatCount="indefinite" />
+            </circle>
+            <text x="63" y="60" fill="#fff" fontSize="9" fontFamily="monospace" fontWeight="bold" opacity="0.9">?</text>
+
+            <circle cx="94" cy="56" r="8" fill="url(#eye_wait)" filter="url(#glow_purple_soft)">
+                <animate attributeName="opacity" values="1;0.6;1" dur="3s" begin="0.4s" repeatCount="indefinite" />
+            </circle>
+            <text x="91" y="60" fill="#fff" fontSize="9" fontFamily="monospace" fontWeight="bold" opacity="0.9">?</text>
+
+            <path d="M 68 71 Q 80 74 92 71" stroke="#7733cc" strokeWidth="2" fill="none" strokeLinecap="round" />
+
+            <rect x="54" y="82" width="52" height="26" rx="5" fill="#0e0718" stroke="#3a1070" strokeWidth="1" />
+
+            <g className="person-icon">
+                <circle cx="80" cy="89" r="5" fill="none" stroke="#aa55ff" strokeWidth="1.5" filter="url(#glow_purple_soft)" />
+                <path d="M 72 103 Q 72 96 80 96 Q 88 96 88 103" fill="none" stroke="#aa55ff" strokeWidth="1.5" strokeLinecap="round" filter="url(#glow_purple_soft)" />
+            </g>
+
+            <rect x="26" y="68" width="18" height="10" rx="5" fill="#160d28" stroke="#4a1a9a" strokeWidth="1.5" transform="rotate(-25 35 73)" />
+            <rect x="116" y="68" width="18" height="10" rx="5" fill="#160d28" stroke="#4a1a9a" strokeWidth="1.5" transform="rotate(25 125 73)" />
+
+            <g className="arrow-ping">
+                <path d="M 108 38 L 114 32 L 120 38" stroke="#aa55ff" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
+                <line x1="114" y1="32" x2="114" y2="46" stroke="#aa55ff" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
+            </g>
+
+            <g>
+                <rect x="106" y="14" width="38" height="20" rx="5" fill="#2a0e50" stroke="#8833dd" strokeWidth="1" opacity="0.85">
+                    <animate attributeName="opacity" values="0.85;0.4;0.85" dur="2s" repeatCount="indefinite" />
+                </rect>
+                <path d="M 116 34 L 112 40 L 122 34" fill="#2a0e50" stroke="#8833dd" strokeWidth="1" strokeLinejoin="round" opacity="0.85">
+                    <animate attributeName="opacity" values="0.85;0.4;0.85" dur="2s" repeatCount="indefinite" />
+                </path>
+                <circle cx="116" cy="24" r="2" fill="#cc77ff">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="2;2.8;2" dur="1.2s" begin="0s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="125" cy="24" r="2" fill="#cc77ff">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="2;2.8;2" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+                </circle>
+                <circle cx="134" cy="24" r="2" fill="#cc77ff">
+                    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+                    <animate attributeName="r" values="2;2.8;2" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+                </circle>
+            </g>
+
+            <rect x="112" y="128" width="5" height="7" rx="1" fill="#9944ff" opacity="0.7">
+                <animate attributeName="opacity" values="0.7;0;0.7" dur="1s" repeatCount="indefinite" />
+            </rect>
+        </svg>
+    )
+}
+
 function BotAiWorkingSVG({ compact = false }) {
     if (compact) {
         return (
@@ -503,7 +613,7 @@ function getSavedSize() {
 }
 
 export default function BotStream() {
-    const { status, aiProcessing, logs } = useBot()
+    const { status, aiProcessing, logs, reviewQueue } = useBot()
 
     // Check if the script has actually reached the 'ready/browsing' log phase
     const isBrowserReady = useMemo(() => {
@@ -655,7 +765,9 @@ export default function BotStream() {
     // ia_procesando        → screenshot + overlay "IA PROCESANDO" encima
     // pausado              → screenshot + overlay pausa (ícono naranja)
     // completado           → SVG bot_done (robot satisfecho, COMPLETADO)
-    // error_fatal          → SVG bot_offline con texto "ERROR — ver terminal"
+    const isWaitingForUser = isPaused && (reviewQueue?.length > 0 || status?.pending_confirmation);
+    const isDryRunPaused = isPaused && status?.mode === 'dry-run-llm' && !isWaitingForUser && botStatus !== 'paused_user';
+
     const renderContent = () => {
         // 1. Error Fatal
         if (botStatus === 'error' || botStatus === 'disconnected' || botStatus === 'stopping') {
@@ -699,11 +811,25 @@ export default function BotStream() {
                             </div>
                         )}
 
-                        {/* Pause Overlay */}
+                        {/* Pause/Waiting Overlay */}
                         {isPaused && (
                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 2 }}>
-                                <PauseOverlaySVG />
-                                <span style={{ color: '#ffaa00', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px' }}>PAUSADO</span>
+                                {isWaitingForUser ? (
+                                    <>
+                                        <BotWaitingUserSVG />
+                                        <span style={{ color: '#ffaa00', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px', marginTop: '-10px' }}>ESPERANDO RESPUESTA</span>
+                                    </>
+                                ) : isDryRunPaused ? (
+                                    <>
+                                        <PauseOverlaySVG />
+                                        <span style={{ color: '#00ccff', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px' }}>MODO DRY-RUN ACTIVADO</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <PauseOverlaySVG />
+                                        <span style={{ color: '#ffaa00', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px' }}>PAUSADO</span>
+                                    </>
+                                )}
                             </div>
                         )}
                     </>
