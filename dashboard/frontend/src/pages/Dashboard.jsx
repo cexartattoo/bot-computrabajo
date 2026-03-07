@@ -47,6 +47,7 @@ export default function Dashboard() {
     const [jobExpanded, setJobExpanded] = useState(true)
     const [viewMode, setViewMode] = useState('original')
     const [openSections, setOpenSections] = useState(new Set(['description']))
+    const [acknowledgedCompletion, setAcknowledgedCompletion] = useState(false)
 
     // Logs State
     const logsRef = useRef(null)
@@ -65,6 +66,13 @@ export default function Dashboard() {
             if (status.apps_this_session === 0) setElapsed(0)
         }
     }, [status.status, status.apps_this_session])
+
+    // Reset acknowledgment when a new run starts
+    useEffect(() => {
+        if (status.status === 'running') {
+            setAcknowledgedCompletion(false)
+        }
+    }, [status.status])
 
     // Auto-scroll sticky logs unless user scrolled up
     useEffect(() => {
@@ -227,7 +235,7 @@ export default function Dashboard() {
         } else {
             stage = 'searching'
         }
-    } else if (status.status === 'idle' && status.apps_this_session > 0) {
+    } else if (status.status === 'idle' && status.apps_this_session > 0 && !acknowledgedCompletion) {
         stage = 'completed'
     }
 
@@ -369,7 +377,7 @@ export default function Dashboard() {
                             <h2 className="text-2xl font-bold" style={{ color: 'var(--success)' }}>Sesion Completada</h2>
                             <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>Se han procesado {status.apps_this_session} ofertas exitosamente.</p>
                         </div>
-                        <button onClick={() => setStatus(prev => ({ ...prev, apps_this_session: 0 }))} className="px-8 py-2.5 rounded-lg text-sm font-bold transition hover:opacity-90 shadow-lg" style={{ background: 'var(--success)', color: '#fff' }}>
+                        <button onClick={() => setAcknowledgedCompletion(true)} className="px-8 py-2.5 rounded-lg text-sm font-bold transition hover:opacity-90 shadow-lg" style={{ background: 'var(--success)', color: '#fff' }}>
                             Volver al Inicio
                         </button>
                     </div>
