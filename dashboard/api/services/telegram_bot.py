@@ -10,6 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 import httpx
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,13 @@ DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:8000")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
+def _short_id(text: str) -> str:
+    """Generate a short 6-char ID from text for callback_data."""
+    return hashlib.md5(text.encode()).hexdigest()[:6]
+
+
 class TelegramBot:
-    """Long-polling Telegram bot with bot control commands."""
+    """Long-polling Telegram bot with bot control commands and inline keyboards."""
 
     def __init__(self):
         self.token = TELEGRAM_BOT_TOKEN
@@ -30,6 +36,10 @@ class TelegramBot:
         self.offset = 0
         self.running = False
         self._task = None
+        # Offer history: keyed by short offer_id -> review_data
+        self.offers_history: dict[str, dict] = {}
+        # Latest missing data reference for callback
+        self.pending_missing_data: dict | None = None
 
     @property
     def enabled(self):
@@ -64,6 +74,43 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Telegram send_document error: {e}")
 
+    async def send_with_inline_keyboard(self, text: str, buttons: list[list[dict]], parse_mode: str = "HTML"):
+        """Send a message with an inline keyboard.
+        buttons format: [[{"text": "Label", "callback_data": "data"}, ...], ...]
+        """
+        if not self.enabled:
+            return
+        try:
+            reply_markup = {"inline_keyboard": buttons}
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(f"{self.base_url}/sendMessage", json={
+                    "chat_id": self.allowed_chat,
+                    "text": text,
+                    "parse_mode": parse_mode,
+                    "reply_markup": reply_markup,
+                })
+        except Exception as e:
+            logger.error(f"Telegram send_with_keyboard error: {e}")
+
+    async def answer_callback(self, callback_query_id: str, text: str = ""):
+        """Answer a callback query (dismiss the loading spinner on the button)."""
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(f"{self.base_url}/answerCallbackQuery", json={
+                    "callback_query_id": callback_query_id,
+                    "text": text[:200] if text else "",
+                })
+        except Exception:
+            pass
+
+    def store_offer(self, offer_id: str, review_data: dict):
+        """Store an offer in history for later retrieval by ID."""
+        self.offers_history[offer_id] = review_data
+        # Keep only last 20 offers to avoid memory bloat
+        if len(self.offers_history) > 20:
+            oldest = list(self.offers_history.keys())[0]
+            del self.offers_history[oldest]
+
     def _get_bot_manager(self):
         from dashboard.api.services.bot_runner import bot_manager
         return bot_manager
@@ -95,6 +142,14 @@ class TelegramBot:
             await asyncio.sleep(2)
             result = await bm.start(mode=old_mode)
             await self.send(f"Bot reiniciado en modo <b>{old_mode}</b>.\n{result.get('message', result.get('status', ''))}")
+
+        elif cmd == "/pausar":
+            result = await bm.pause()
+            await self.send(f"Bot pausado.\n{result.get('message', '')}")
+
+        elif cmd == "/reanudar":
+            result = await bm.resume()
+            await self.send(f"Bot reanudado.\n{result.get('message', '')}")
 
         elif cmd == "/status":
             s = bm.get_status()
@@ -192,6 +247,8 @@ class TelegramBot:
                 "/start_auto - Iniciar automatico\n"
                 "/start_semi - Iniciar semi-auto\n"
                 "/stop - Detener\n"
+                "/pausar - Pausar bot\n"
+                "/reanudar - Reanudar bot\n"
                 "/status - Estado actual\n"
                 "/restart - Reiniciar\n\n"
                 "<b>Revision:</b>\n"
@@ -219,6 +276,68 @@ class TelegramBot:
         else:
             await self.send(f"Comando no reconocido: {cmd}\nUsa /ayuda para ver comandos.")
 
+    async def _handle_callback_query(self, callback_query: dict):
+        """Handle inline keyboard button presses."""
+        cb_id = callback_query.get("id", "")
+        data = callback_query.get("data", "")
+        chat_id = str(callback_query.get("message", {}).get("chat", {}).get("id", ""))
+
+        if chat_id != self.allowed_chat:
+            return
+
+        bm = self._get_bot_manager()
+
+        # Offer actions: aprobar_XXXXXX, rechazar_XXXXXX, ver_XXXXXX
+        if data.startswith("aprobar_"):
+            offer_id = data.split("_", 1)[1]
+            if bm.pending_confirmation:
+                result = await bm.confirm(approved=True)
+                await self.answer_callback(cb_id, "Oferta aprobada")
+                await self.send(f"Oferta aprobada. {result.get('message', '')}")
+            else:
+                await self.answer_callback(cb_id, "Ya no hay oferta pendiente")
+                await self.send("Esta oferta ya no esta pendiente de revision.")
+
+        elif data.startswith("rechazar_"):
+            offer_id = data.split("_", 1)[1]
+            if bm.pending_confirmation:
+                result = await bm.confirm(approved=False)
+                await self.answer_callback(cb_id, "Oferta rechazada")
+                await self.send(f"Oferta rechazada. {result.get('message', '')}")
+            else:
+                await self.answer_callback(cb_id, "Ya no hay oferta pendiente")
+                await self.send("Esta oferta ya no esta pendiente de revision.")
+
+        elif data.startswith("ver_"):
+            offer_id = data.split("_", 1)[1]
+            offer = self.offers_history.get(offer_id)
+            if offer:
+                job = offer.get("job", {})
+                answers = offer.get("answers", {})
+                msg = (
+                    f"<b>{job.get('title', '?')}</b>\n"
+                    f"{job.get('company', '')} | {job.get('location', '')}\n"
+                    f"{job.get('url', '')}\n\n"
+                )
+                if job.get('description'):
+                    msg += f"<b>Descripcion:</b>\n{job['description'][:500]}...\n\n"
+                for q, a in answers.items():
+                    ans_text = a.get("answer", a) if isinstance(a, dict) else a
+                    conf = a.get("confianza", "?") if isinstance(a, dict) else "?"
+                    msg += f"<b>P:</b> {q}\n<b>R:</b> {str(ans_text)[:200]}\n<b>Confianza:</b> {conf}\n\n"
+                await self.answer_callback(cb_id, "Mostrando oferta")
+                await self.send(msg[:4000])
+            else:
+                await self.answer_callback(cb_id, "Oferta no encontrada")
+                await self.send("No se encontro esta oferta en el historial.")
+
+        # Missing data option: dato_OPCION
+        elif data.startswith("dato_"):
+            answer = data.split("dato_", 1)[1]
+            result = await bm.respond_missing(answer=answer)
+            await self.answer_callback(cb_id, f"Enviado: {answer}")
+            await self.send(f"Dato enviado: <b>{answer}</b>")
+
     async def _poll_loop(self):
         """Main polling loop — runs forever."""
         logger.info("Telegram bot polling started")
@@ -236,6 +355,17 @@ class TelegramBot:
                     data = resp.json()
                     for update in data.get("result", []):
                         self.offset = update["update_id"] + 1
+
+                        # Handle inline keyboard button presses
+                        cb = update.get("callback_query")
+                        if cb:
+                            try:
+                                await self._handle_callback_query(cb)
+                            except Exception as e:
+                                logger.error(f"Telegram callback error: {e}")
+                            continue
+
+                        # Handle regular text commands
                         msg = update.get("message", {})
                         chat_id = str(msg.get("chat", {}).get("id", ""))
                         text = msg.get("text", "").strip()

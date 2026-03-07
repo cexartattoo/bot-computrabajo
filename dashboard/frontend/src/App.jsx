@@ -8,6 +8,7 @@ import Review from './pages/Review'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import ThemeToggle from './components/ThemeToggle'
+import BotStream from './components/BotStream'
 
 const NAV = [
     { path: '/', label: 'Panel' },
@@ -123,6 +124,8 @@ function AppShell() {
 
             {/* Global mini-log strip at bottom */}
             <MiniLogStrip />
+            {/* Global floating window for bot livestream */}
+            <BotStream />
         </div>
     )
 }

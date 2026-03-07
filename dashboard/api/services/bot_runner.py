@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 class BotStatus(str, Enum):
     IDLE = "idle"
     RUNNING = "running"
-    PAUSED = "paused"
+    PAUSED = "paused"          # waiting for review confirmation
+    PAUSED_USER = "paused_user" # user-initiated pause
     ERROR = "error"
     STOPPING = "stopping"
 
@@ -56,7 +57,7 @@ class BotManager:
     async def start(self, mode: str = "apply", max_apps: int = None,
                     keyword: str = None, cv: str = None) -> dict:
         """Launch the bot as a subprocess."""
-        if self.status in (BotStatus.RUNNING, BotStatus.PAUSED, BotStatus.STOPPING):
+        if self.status in (BotStatus.RUNNING, BotStatus.PAUSED, BotStatus.PAUSED_USER, BotStatus.STOPPING):
             return {"error": "Bot ya esta corriendo o pausado", "status": self.status}
 
         cmd = [sys.executable, "-m", "bot.bot", "--mode", mode]
@@ -74,6 +75,14 @@ class BotManager:
 
         # Clean old log files (older than 7 days)
         self._clean_old_logs()
+
+        # Clear any stale pause signal from previous session
+        pause_file = self._semi_auto_dir / "pause_signal.json"
+        if pause_file.exists():
+            try:
+                pause_file.unlink()
+            except Exception:
+                pass
 
         # Open log file for this session
         log_filename = f"bot_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
@@ -199,10 +208,15 @@ class BotManager:
                             )
                             # Send Telegram notification with Q&A summary
                             try:
-                                from dashboard.api.services.telegram_bot import telegram_bot
+                                from dashboard.api.services.telegram_bot import telegram_bot, _short_id
                                 job = review_data.get("job", {})
                                 answers = review_data.get("answers", {})
                                 dashboard_url = os.environ.get("DASHBOARD_URL", "http://localhost:8000")
+                                
+                                # Generate unique offer ID and store in history
+                                offer_id = _short_id(job.get('title', '') + job.get('url', '') + datetime.now().isoformat())
+                                telegram_bot.store_offer(offer_id, review_data)
+                                
                                 tg_msg = (
                                     f"Oferta para revision:\n"
                                     f"<b>{job.get('title', '?')}</b>\n"
@@ -221,12 +235,20 @@ class BotManager:
                                         tg_msg += f"{idx}. {q[:60]}\n   -> {resp_short} (Confianza: {conf})\n"
                                 else:
                                     tg_msg += "No hay preguntas para responder en esta oferta.\n"
-                                tg_msg += (
-                                    f"\n<a href=\"{dashboard_url}/#/review\">Revisar en dashboard</a>\n"
-                                    f"O usa /aprobar | /rechazar | /ver_oferta"
-                                )
+                                tg_msg += f"\n<a href=\"{dashboard_url}/#/review\">Revisar en dashboard</a>"
+                                
+                                # Inline keyboard buttons with offer ID
+                                buttons = [
+                                    [
+                                        {"text": "Aprobar", "callback_data": f"aprobar_{offer_id}"},
+                                        {"text": "Rechazar", "callback_data": f"rechazar_{offer_id}"},
+                                    ],
+                                    [
+                                        {"text": "Ver oferta completa", "callback_data": f"ver_{offer_id}"},
+                                    ]
+                                ]
                                 asyncio.run_coroutine_threadsafe(
-                                    telegram_bot.send(tg_msg[:4000]), self._loop
+                                    telegram_bot.send_with_inline_keyboard(tg_msg[:4000], buttons), self._loop
                                 )
                             except Exception:
                                 pass
@@ -259,12 +281,46 @@ class BotManager:
                                     f"Pregunta: <b>{missing_data.get('question', '?')}</b>\n"
                                     f"Respuesta actual: {missing_data.get('current_answer', 'N/A')}\n"
                                     f"Confianza: {missing_data.get('confianza', '?')}\n\n"
-                                    f"Responde con /dato [tu respuesta] en los proximos 5 minutos.\n"
-                                    f"<a href=\"{dashboard_url}/#/review\">O responde en el dashboard</a>"
                                 )
-                                asyncio.run_coroutine_threadsafe(
-                                    telegram_bot.send(tg_msg), self._loop
-                                )
+                                
+                                # Check if there are selectable options
+                                options = missing_data.get('options', [])
+                                input_type = missing_data.get('input_type', 'text')
+                                
+                                if options and input_type in ('radio', 'select'):
+                                    tg_msg += "Selecciona una opcion:"
+                                    # Build inline keyboard with option buttons
+                                    buttons = []
+                                    row = []
+                                    for opt in options:
+                                        opt_str = str(opt).strip()
+                                        if not opt_str:
+                                            continue
+                                        # callback_data max is 64 bytes
+                                        cb_data = f"dato_{opt_str[:58]}"
+                                        row.append({"text": opt_str, "callback_data": cb_data})
+                                        if len(row) >= 3:  # Max 3 buttons per row
+                                            buttons.append(row)
+                                            row = []
+                                    if row:
+                                        buttons.append(row)
+                                    
+                                    if buttons:
+                                        asyncio.run_coroutine_threadsafe(
+                                            telegram_bot.send_with_inline_keyboard(tg_msg, buttons), self._loop
+                                        )
+                                    else:
+                                        tg_msg += f"Responde con /dato [tu respuesta] en los proximos 5 minutos.\n"
+                                        tg_msg += f'<a href="{dashboard_url}/#/review">O responde en el dashboard</a>'
+                                        asyncio.run_coroutine_threadsafe(
+                                            telegram_bot.send(tg_msg), self._loop
+                                        )
+                                else:
+                                    tg_msg += f"Responde con /dato [tu respuesta] en los proximos 5 minutos.\n"
+                                    tg_msg += f'<a href="{dashboard_url}/#/review">O responde en el dashboard</a>'
+                                    asyncio.run_coroutine_threadsafe(
+                                        telegram_bot.send(tg_msg), self._loop
+                                    )
                             except Exception:
                                 pass
                         continue
@@ -344,9 +400,41 @@ class BotManager:
         except Exception:
             pass
 
+    async def pause(self) -> dict:
+        """Pause the bot at the next safe point (between job offers)."""
+        import json as _json
+        if self.process is None or self.status not in (BotStatus.RUNNING,):
+            return {"status": self.status, "message": "Bot no esta corriendo"}
+        self.status = BotStatus.PAUSED_USER
+        signal_file = self._semi_auto_dir / "pause_signal.json"
+        signal_file.write_text(_json.dumps({"paused": True}, ensure_ascii=False), encoding="utf-8")
+        await self._broadcast("[SYSTEM] Bot pausado por el usuario. Se detendrá al terminar la oferta actual.")
+        try:
+            from dashboard.api.services.notifier import send_notification
+            await send_notification("Bot pausado por el usuario.")
+        except Exception:
+            pass
+        return {"status": self.status, "message": "Bot pausado"}
+
+    async def resume(self) -> dict:
+        """Resume the bot from user-initiated pause."""
+        import json as _json
+        if self.status != BotStatus.PAUSED_USER:
+            return {"status": self.status, "message": "Bot no esta pausado"}
+        self.status = BotStatus.RUNNING
+        signal_file = self._semi_auto_dir / "pause_signal.json"
+        signal_file.write_text(_json.dumps({"paused": False}, ensure_ascii=False), encoding="utf-8")
+        await self._broadcast("[SYSTEM] Bot reanudado por el usuario.")
+        try:
+            from dashboard.api.services.notifier import send_notification
+            await send_notification("Bot reanudado por el usuario.")
+        except Exception:
+            pass
+        return {"status": self.status, "message": "Bot reanudado"}
+
     async def stop(self) -> dict:
         """Stop the running bot subprocess gracefully."""
-        if self.process is None or self.status not in (BotStatus.RUNNING, BotStatus.PAUSED):
+        if self.process is None or self.status not in (BotStatus.RUNNING, BotStatus.PAUSED, BotStatus.PAUSED_USER):
             return {"status": self.status, "message": "No hay bot corriendo"}
 
         self.status = BotStatus.STOPPING

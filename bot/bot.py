@@ -65,6 +65,60 @@ def parse_args():
     return parser.parse_args()
 
 
+async def _screen_stream_loop(page):
+    """Background task to capture bot's screen for the dashboard via CDP.
+    
+    Uses Chrome DevTools Protocol (CDP) instead of page.screenshot() to avoid
+    competing with the bot's Playwright automation commands on the same internal
+    pipe. CDP screenshots are lightweight and don't queue behind navigation or
+    evaluation commands, preventing both stream freezes and EPIPE crashes.
+    """
+    import base64
+    
+    stream_dir = Path(__file__).parent.parent / ".semi_auto"
+    stream_dir.mkdir(exist_ok=True)
+    screen_path = stream_dir / "screen.jpg"
+    temp_path = stream_dir / "screen_tmp.jpg"
+    
+    cdp_session = None
+    
+    while True:
+        try:
+            if page.is_closed():
+                break
+            
+            # Create or recreate CDP session
+            if cdp_session is None:
+                try:
+                    cdp_session = await page.context.new_cdp_session(page)
+                except Exception:
+                    await asyncio.sleep(1)
+                    continue
+            
+            # Capture screenshot via CDP (bypasses Playwright command queue)
+            result = await cdp_session.send("Page.captureScreenshot", {
+                "format": "jpeg",
+                "quality": 40,
+            })
+            
+            # Write base64 data to disk
+            img_data = base64.b64decode(result["data"])
+            temp_path.write_bytes(img_data)
+            temp_path.replace(screen_path)
+            
+            await asyncio.sleep(1.0)  # 1 FPS
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            # If the CDP session died or page closed, invalidate and retry
+            if "target closed" in error_str or "session closed" in error_str or "pipe" in error_str:
+                cdp_session = None
+            # If the page/browser is completely gone, stop the loop
+            if page.is_closed():
+                break
+            await asyncio.sleep(1.0)
+
+
 async def run_bot(mode: str = "apply", specific_keyword: str = None,
                   max_apps: int = None, cv_profile: str = None):
     """Main bot execution loop."""
@@ -137,6 +191,9 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
         async with async_playwright() as playwright:
             browser, page = await launch_browser(playwright)
 
+            # Start screen streaming task
+            screen_task = asyncio.create_task(_screen_stream_loop(page))
+
             # Login
             logged_in = await login(page)
             if not logged_in:
@@ -194,17 +251,38 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                         # Apply (mode-aware) with per-job timeout
                         job_timeout = 600 if mode == "semi-auto" else 120
                         try:
-                            success, answers = await asyncio.wait_for(
+                            result, answers = await asyncio.wait_for(
                                 apply_to_job(page, job, mode=mode),
                                 timeout=job_timeout,
                             )
                         except asyncio.TimeoutError:
                             print(f"  [WARN] Timeout ({job_timeout}s) procesando oferta. Saltando.")
-                            success, answers = False, {}
+                            result, answers = False, {}
                             consecutive_errors += 1
                             continue
 
-                        if mode == "dry-run-llm":
+                        # --- Caso A: "Ya aplicaste a esta oferta" ---
+                        # Detected in ALL modes. Register in DB as 'aplicado_anteriormente',
+                        # count in results, and notify via Telegram (through review request).
+                        if result == "already_applied":
+                            log_application(
+                                job_title=job["title"],
+                                company=job["company"],
+                                url=url,
+                                location=job.get("location", ""),
+                                salary=job.get("salary", ""),
+                                status="aplicado_anteriormente",
+                                mode=mode,
+                                cv_used=active_cv.name,
+                                notes="Ya aplicaste a esta oferta (detectado por Computrabajo)"
+                            )
+                            applied_count += 1
+                            consecutive_errors = 0
+                        elif mode == "dry-run-llm":
+                            # Caso B: sin cuestionario -> 'applied' (proceso completo)
+                            # Caso C: con cuestionario -> 'dry-run' (respuestas sin enviar)
+                            dry_status = "dry-run" if answers else "applied"
+                            dry_notes = "" if answers else "Sin cuestionario - proceso completado (dry-run)"
                             log_application(
                                 job_title=job["title"],
                                 company=job["company"],
@@ -212,13 +290,14 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                                 location=job.get("location", ""),
                                 salary=job.get("salary", ""),
                                 answers=answers,
-                                status="dry-run",
+                                status=dry_status,
                                 mode=mode,
                                 cv_used=active_cv.name,
+                                notes=dry_notes,
                             )
                             applied_count += 1
                             consecutive_errors = 0
-                        elif success:
+                        elif result:
                             log_application(
                                 job_title=job["title"],
                                 company=job["company"],
@@ -252,16 +331,57 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                             rest_counter = 0
                             rest_interval = random.randint(3, 5)
                         else:
-                            await human_delay()
+                            # Longer cooldown between offers to avoid exhausting
+                            # Gemini API rate limits (3 keys x 3 retries = 9 calls burnt in 30s)
+                            cooldown = random.uniform(15, 25)
+                            print(f"  [~] Pausa entre ofertas: {cooldown:.0f}s (cooldown API)")
+                            await asyncio.sleep(cooldown)
+
+                        # ── Check for user-initiated pause signal (IPC) ──
+                        pause_signal_file = Path(__file__).parent.parent / ".semi_auto" / "pause_signal.json"
+                        if pause_signal_file.exists():
+                            try:
+                                import json as _pjson
+                                pause_data = _pjson.loads(pause_signal_file.read_text(encoding="utf-8"))
+                                if pause_data.get("paused"):
+                                    print("  [PAUSA] Bot pausado por el usuario. Esperando reanudacion...")
+                                    while True:
+                                        await asyncio.sleep(2)
+                                        if not pause_signal_file.exists():
+                                            break
+                                        pause_data = _pjson.loads(pause_signal_file.read_text(encoding="utf-8"))
+                                        if not pause_data.get("paused"):
+                                            break
+                                    print("  [PAUSA] Bot reanudado. Continuando...")
+                            except Exception:
+                                pass
 
     except asyncio.CancelledError:
-        print("\n  [!] Ejecución cancelada (tareas asíncronas).")
+        print("\n  [!] Ejecucion cancelada (tareas asincronas).")
+    except (BrokenPipeError, ConnectionError, OSError) as e:
+        print(f"\n  [!] Conexion con el navegador perdida (EPIPE): {e}")
+        print("      El bot se detendra limpiamente.")
     except Exception as e:
-        print(f"\n  [!] Error inesperado durante la ejecución: {e}")
+        # Suppress TargetClosedError on shutdown
+        if "TargetClosedError" in type(e).__name__ or "Target closed" in str(e):
+            print("\n  [!] Navegador cerrado. Finalizando limpiamente.")
+        else:
+            print(f"\n  [!] Error inesperado durante la ejecucion: {e}")
     finally:
-        # Final summary — ALWAYS generate report (even on Ctrl+C)
+        # Cancel screen streaming task before cleanup
+        try:
+            if 'screen_task' in dir() and screen_task and not screen_task.done():
+                screen_task.cancel()
+                try:
+                    await screen_task
+                except (asyncio.CancelledError, Exception):
+                    pass
+        except Exception:
+            pass
+
+        # Final summary -- ALWAYS generate report (even on Ctrl+C)
         print("\n" + "=" * 60)
-        print(f"  Sesión finalizada: {applied_count} aplicaciones procesadas (modo: {mode})")
+        print(f"  Sesion finalizada: {applied_count} aplicaciones procesadas (modo: {mode})")
         from bot.job_tracker import print_summary, generate_report
         print_summary()
         report_path = generate_report()

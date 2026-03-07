@@ -42,20 +42,13 @@ _CV_DATA = None
 
 # Try models from best to fastest/cheapest
 GEMINI_MODELS = [
+    "gemini-2.0-flash",
     "gemini-2.5-flash",
-    "gemma-3-1b-it",
-    "gemma-3-4b-it",
-    "gemma-3-12b-it",
-    "gemma-3-27b-it",
-    "gemma-3n-e4b-it",
-    "gemma-3n-e2b-it",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
     "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-lite-preview-09-2025",
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-robotics-er-1.5-preview"
+    "gemini-flash-latest",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
 ]
 
 
@@ -257,6 +250,16 @@ REGLAS DE RESPUESTA (CRÍTICAS — léelas antes de responder):
 • Pretensiones salariales → "Entre 2.5 y 3.5 millones, negociable según responsabilidades del cargo"
 • Disponibilidad → "Disponibilidad inmediata"
 
+[SELECCION DE CV / ARCHIVO ADJUNTO]:
+• Si la pregunta es sobre selección de CV, hoja de vida o archivo adjunto,
+  responde UNICAMENTE con el nombre exacto del archivo principal: "Cesar_Ramirez_Ingeniero_Mecatronico_CV-1.pdf"
+  Sin ninguna explicación adicional.
+
+[REGLA CRITICA — NO INVENTES PREGUNTAS]:
+• Responde UNICAMENTE las preguntas listadas arriba. NO agregues preguntas extra.
+• El array "respuestas" debe tener EXACTAMENTE {len(valid_questions)} elementos, uno por cada pregunta.
+• Si inventas preguntas que no están en la lista, tu respuesta será descartada.
+
 ══════════════════════════════════════════
 FORMATO DE RESPUESTA (OBLIGATORIO):
 ══════════════════════════════════════════
@@ -301,6 +304,87 @@ JSON A CONTINUACIÓN:"""
 # ══════════════════════════════════════════════════════════════
 #  PUBLIC API
 # ══════════════════════════════════════════════════════════════
+
+def summarize_job(job_title: str, company: str, job_description: str) -> dict:
+    """Extrae un resumen estructurado de la oferta usando IA.
+    
+    Retorna un dict con campos clave de la oferta interpretados por el modelo.
+    Si el parsing falla, retorna dict con clave 'description' como fallback.
+    """
+    if not job_description or not GEMINI_AVAILABLE or not GEMINI_API_KEYS:
+        return {"description": "Resumen IA no disponible."}
+        
+    prompt = f"""Analiza el siguiente texto de una oferta laboral para el cargo de "{job_title}" en la empresa "{company}".
+
+TEXTO DE LA OFERTA:
+{job_description[:4000]}
+
+Extrae la informacion y genera un resumen estructurado en español.
+Devuelve UNICAMENTE un objeto JSON (sin markdown, sin ```) con los siguientes campos.
+Si un campo no esta disponible en el texto, OMITELO del JSON (no pongas null ni vacio).
+
+{{
+  "cargo": "Titulo exacto del cargo",
+  "empresa": "Nombre de la empresa",
+  "salario": "Rango salarial si aparece, ej: $6.000.000 + $2.000.000 variable",
+  "contrato": "Tipo de contrato, ej: Termino fijo, Obra o labor, Indefinido",
+  "modalidad": "Presencial / Remoto / Hibrido",
+  "jornada": "Tiempo completo, Medio tiempo, horarios si los hay",
+  "ubicacion": "Ciudad, departamento, direccion si aparece",
+  "educacion": "Nivel educativo minimo requerido",
+  "experiencia": "Anos de experiencia requeridos + area",
+  "fecha": "Fecha de publicacion o actualizacion si aparece",
+  "keywords": "Palabras clave separadas por coma",
+  "description": "Resumen breve y claro del cargo en 2-3 oraciones. Que hace la persona en este rol.",
+  "requirements": "Requisitos clave del perfil: formacion, tecnologias, conocimientos. Formato de lista con viñetas.",
+  "responsibilities": "Principales responsabilidades y funciones del cargo. Formato de lista con viñetas.",
+  "benefits": "Beneficios, compensacion variable, prestaciones si se mencionan."
+}}
+
+Se directo y conciso. No inventes datos que no esten en el texto. Solo JSON."""
+    
+    print(f"[PROMPT IA] {prompt}")
+
+    for model_name in GEMINI_MODELS:
+        for idx, api_key in enumerate(GEMINI_API_KEYS):
+            try:
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel(model_name=model_name)
+                response = model.generate_content(
+                    prompt, 
+                    generation_config=genai.GenerationConfig(temperature=0.2)
+                )
+                if response and response.text:
+                    raw = response.text.strip()
+                    print(f"[RESPUESTA IA] {raw}")
+                    # Intentar parsear JSON
+                    if raw.startswith("```"):
+                        lines = raw.split("\n")
+                        first = 1 if lines[0].strip().startswith("```") else 0
+                        last = len(lines) - 1
+                        if lines[last].strip() == "```":
+                            last -= 1
+                        raw = "\n".join(lines[first:last+1]).strip()
+                    try:
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except json.JSONDecodeError:
+                        # Intentar extraer JSON embebido
+                        match = re.search(r'\{.*\}', raw, re.DOTALL)
+                        if match:
+                            try:
+                                parsed = json.loads(match.group(0))
+                                if isinstance(parsed, dict):
+                                    return parsed
+                            except json.JSONDecodeError:
+                                pass
+                    # Si no se pudo parsear como JSON, usar texto crudo
+                    return {"description": raw}
+            except Exception:
+                continue
+    return {"description": "No se pudo generar el resumen (la IA fallo)."}
+
 
 def answer_question(
     question: str,
@@ -453,6 +537,8 @@ def _answer_with_gemini_batch(
     Intenta todas las combinaciones (modelo × api_key) hasta obtener JSON válido.
     Devuelve (answers_dict, model_name_used).
     """
+    print(f"[PROMPT PREGUNTAS IA] {prompt}")
+
     for model_name in GEMINI_MODELS:
         for idx, api_key in enumerate(GEMINI_API_KEYS):
             try:
@@ -469,41 +555,72 @@ def _answer_with_gemini_batch(
                 if not text:
                     continue
 
-                # Debug: log primeros 300 chars de la respuesta
-                preview = text[:300].replace('\n', ' ')
-                print(f"  [AI] [DBG] Respuesta raw ({model_name}, key #{idx+1}): {preview}...")
+                # Debug: log respuesta completa
+                print(f"[RESPUESTA PREGUNTAS IA] {text}")
 
                 parsed = _parse_json_response(text, valid_questions)
                 if parsed is None:
                     print(f"  [AI] [WARN] {model_name} (key #{idx+1}): respuesta no es JSON valido. Reintentando...")
                     continue
 
+                # ── Post-validation: build set of normalized valid questions ──
+                valid_norm = {}
+                for vq in valid_questions:
+                    # Normalize: lowercase, strip, remove leading question marks
+                    norm = vq.lower().strip().lstrip("?").rstrip("?").strip()
+                    valid_norm[norm] = vq
+
+                def _match_question(pregunta_ai: str) -> str | None:
+                    """Match AI-returned pregunta to a valid question. Returns the original valid_question or None."""
+                    norm_ai = pregunta_ai.lower().strip().lstrip("?").rstrip("?").strip()
+                    # Exact match
+                    if norm_ai in valid_norm:
+                        return valid_norm[norm_ai]
+                    # Substring match (AI might add/remove question marks or small diffs)
+                    for norm_vq, orig_vq in valid_norm.items():
+                        if norm_ai in norm_vq or norm_vq in norm_ai:
+                            return orig_vq
+                    return None
+
                 # Formato NUEVO: lista de dicts con pregunta/respuesta/tipo/confianza
                 if isinstance(parsed, list):
                     result = {}
+                    discarded = 0
                     for item in parsed:
                         pregunta = item.get("pregunta", "").strip()
-                        if pregunta:
-                            result[pregunta] = {
-                                "respuesta":  item.get("respuesta", ""),
-                                "tipo":       item.get("tipo", "narrativa"),
-                                "confianza":  item.get("confianza", "media"),
-                            }
+                        if not pregunta:
+                            continue
+                        matched = _match_question(pregunta)
+                        if matched is None:
+                            print(f"  [AI] [WARN] Descartada pregunta inventada: {pregunta[:80]}")
+                            discarded += 1
+                            continue
+                        result[matched] = {
+                            "respuesta":  item.get("respuesta", ""),
+                            "tipo":       item.get("tipo", "narrativa"),
+                            "confianza":  item.get("confianza", "media"),
+                        }
+                    if discarded:
+                        print(f"  [AI] [WARN] {discarded} preguntas inventadas descartadas de {len(parsed)} totales")
                     if result:
-                        print(f"  [AI] [OK] {len(result)} respuestas (formato nuevo) con {model_name} (key #{idx+1})")
+                        print(f"  [AI] [OK] {len(result)} respuestas validas (formato nuevo) con {model_name} (key #{idx+1})")
                         return result, model_name
 
                 # Formato LEGACY: flat dict {pregunta: respuesta_texto}
                 elif isinstance(parsed, dict):
                     result = {}
                     for q_text, answer_text in parsed.items():
-                        result[q_text] = {
+                        matched = _match_question(q_text)
+                        if matched is None:
+                            print(f"  [AI] [WARN] Descartada pregunta inventada: {q_text[:80]}")
+                            continue
+                        result[matched] = {
                             "respuesta":  str(answer_text),
                             "tipo":       "narrativa",
                             "confianza":  "media",
                         }
                     if result:
-                        print(f"  [AI] [OK] {len(result)} respuestas (formato legacy) con {model_name} (key #{idx+1})")
+                        print(f"  [AI] [OK] {len(result)} respuestas validas (formato legacy) con {model_name} (key #{idx+1})")
                         return result, model_name
 
             except Exception as e:

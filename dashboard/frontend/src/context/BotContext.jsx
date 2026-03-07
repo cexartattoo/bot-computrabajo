@@ -32,11 +32,11 @@ export function BotProvider({ children }) {
             ws = new WebSocket(`${proto}://${location.host}/api/bot/ws`)
             ws.onmessage = (e) => {
                 const data = e.data
-                // Try JSON parse for review requests
+                // Try JSON parse for review requests and missing data
                 if (data.startsWith('{') || data.startsWith('[')) {
                     try {
                         const parsed = JSON.parse(data)
-                        if (parsed.type === 'review_request') {
+                        if (parsed.type === 'review_request' || parsed.type === 'missing_data') {
                             setReviewQueue(prev => [...prev, parsed])
                             return // Don't add structured JSON to text logs
                         }

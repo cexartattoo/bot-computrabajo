@@ -333,17 +333,37 @@ async def search_jobs_paginated(page: Page, keyword: str, location: str = "Bogot
     return all_jobs
 
 
-async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool, dict]:
+async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
     """
     Navigate to job URL and attempt to apply.
 
     Modes:
-      - "apply"       → Fill form + submit (default)
-      - "dry-run-llm" → Get LLM answers but NEVER touch the form
-      - "semi-auto"   → Fill form, pause for user review, then submit
+      - "apply"       -> Fill form + submit (default)
+      - "dry-run-llm" -> Get LLM answers but NEVER touch the form
+      - "semi-auto"   -> Fill form, pause for user review, then submit
 
-    Returns (success: bool, answers: dict)
+    Returns (result, answers: dict)
+      result can be:
+        True  -> application submitted successfully
+        False -> application failed
+        "already_applied" -> Computrabajo says "Ya aplicaste a esta oferta"
+
     answers dict has structure: {question: {"answer": ..., "model": ..., "tipo": ..., "confianza": ...}}
+
+    --- Special Cases ---
+
+    Caso A - "Ya aplicaste a esta oferta":
+      Detectado tras click en Aplicar. Computrabajo muestra mensaje de duplicado.
+      Retorna ("already_applied", {}). El bot registra en BD con status
+      'aplicado_anteriormente', se cuenta en resultados y se notifica por Telegram.
+
+    Caso B - Dry-run sin cuestionario:
+      Cuando no hay preguntas en el formulario. El proceso se considera completo.
+      Retorna (True, {}). El bot registra en BD como 'applied' con nota explicativa.
+
+    Caso C - Dry-run con cuestionario:
+      Preguntas detectadas, LLM genera respuestas pero NO se llenan en el formulario.
+      Retorna (True, answers). El bot registra en BD como 'dry-run'.
     """
     from bot.ai_responder import answer_questions_batch, answer_question
 
@@ -359,7 +379,208 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
     await natural_scroll(page, random.randint(300, 800))
     await reading_pause(job.get("title", "") + " " + job.get("company", ""))
 
+    # ── Extraer contenido estructurado del contenedor principal de la oferta ──
+    # Selectores VERIFICADOS contra el HTML real de Computrabajo:
+    #   - Tags rapidos: span.tag.base (NO span.tag, que matchea cientos de elementos)
+    #   - Contenido oferta: div[div-link="oferta"] contiene descripcion, tags, requisitos
+    #   - Titulo: h1 en main.detail_fs > .container (fuera del box_border)
+    #   - Empresa: p.fs16 en main.detail_fs > .container (fuera del box_border)
+    #   - Descripcion: p.mbB dentro de div[div-link="oferta"]
+    #   - Requisitos: ul.disc li dentro de div[div-link="oferta"]
+    #   - Keywords: p.fc_aux.fs13 con "Palabras clave" dentro de div[div-link="oferta"]
+    #   - Fecha: p.fc_aux.fs13 con "Hace" dentro de div[div-link="oferta"]
+    job_details = {}
+    try:
+        job_details = await page.evaluate('''() => {
+            const quick_facts = {};
+            const sections = {};
+
+            // 1. Titulo y empresa -- estan FUERA del box_border, directamente en
+            //    main.detail_fs > .container
+            const h1 = document.querySelector('main.detail_fs h1');
+            if (h1) quick_facts.title = h1.innerText.trim();
+
+            // Empresa y ubicacion: <p class="fs16">CUN - Bogota, D.C., Bogota, D.C.</p>
+            const compSub = document.querySelector('main.detail_fs > .container > p.fs16');
+            if (compSub) {
+                const compText = compSub.innerText.trim();
+                if (compText.includes(' - ')) {
+                    const parts = compText.split(' - ');
+                    quick_facts.company = parts[0].trim();
+                    quick_facts.location = parts.slice(1).join(' - ').trim();
+                } else {
+                    quick_facts.company = compText;
+                }
+            }
+
+            // 2. Localizar el bloque de la oferta: div[div-link="oferta"]
+            //    Este div contiene SOLO el contenido de la oferta (tags, descripcion,
+            //    requisitos, keywords, fecha). TODO lo demas (empresa, salarios,
+            //    ofertas similares) esta en otros div[div-link="..."]
+            const offerBlock = document.querySelector('div[div-link="oferta"]');
+
+            // 3. Tags rapidos: span.tag.base (NO span.tag que matchea nav, badges, etc.)
+            //    Estos estan dentro de div[div-link="oferta"] > div.mbB > span.tag.base
+            const tagScope = offerBlock || document;
+            const spanTags = Array.from(tagScope.querySelectorAll('span.tag.base'));
+            for (const tag of spanTags) {
+                const text = tag.innerText.trim();
+                if (!text || text.length > 80) continue;
+                const lower = text.toLowerCase();
+                if (text.includes('$') || lower.includes('salario') || lower.includes('convenir')) {
+                    quick_facts.salary = text;
+                } else if (lower.includes('contrato')) {
+                    quick_facts.contract = text;
+                } else if (lower.includes('tiempo completo') || lower.includes('medio tiempo') || lower.includes('jornada') || lower.includes('a.m.') || lower.includes('p.m.')) {
+                    quick_facts.schedule = text;
+                } else if (lower.includes('remoto') || lower.includes('teletrabajo') || lower.includes('hibrido') || lower.includes('híbrido') || lower.includes('presencial')) {
+                    quick_facts.modality = text;
+                }
+            }
+
+            // 4. Requisitos: ul.disc li dentro del bloque de oferta
+            const reqScope = offerBlock || document;
+            const reqItems = Array.from(reqScope.querySelectorAll('ul.disc li'));
+            const requirementLines = [];
+            for (const li of reqItems) {
+                const text = li.innerText.trim();
+                if (!text) continue;
+                const lower = text.toLowerCase();
+                if (lower.includes('educación mínima') || lower.includes('educacion minima') || lower.includes('postgrado') || lower.includes('especialización') || lower.includes('universidad') || lower.includes('bachillerato') || lower.includes('técnic')) {
+                    quick_facts.education = text;
+                } else if (lower.includes('experiencia') || lower.includes('años de experiencia') || lower.includes('año de experiencia')) {
+                    quick_facts.experience = text;
+                }
+                requirementLines.push(text);
+            }
+            if (requirementLines.length > 0) {
+                sections.requirements = requirementLines.join('\\n');
+            }
+
+            // 5. Fecha y keywords: p.fc_aux.fs13 dentro del bloque de oferta
+            const auxScope = offerBlock || document;
+            const auxParas = Array.from(auxScope.querySelectorAll('p.fc_aux.fs13, p.fs13.fc_aux'));
+            for (const p of auxParas) {
+                const text = p.innerText.trim();
+                const lower = text.toLowerCase();
+                if (lower.includes('hace') || lower.includes('actualizada') || lower.includes('publicada')) {
+                    quick_facts.date = text;
+                } else if (lower.includes('palabras clave')) {
+                    const kw = text.replace(/^palabras clave:\\s*/i, '').trim();
+                    if (kw) {
+                        quick_facts.keywords = kw;
+                        sections.keywords = kw;
+                    }
+                }
+            }
+
+            // 6. Detectar modalidad desde la descripcion si no se encontro en tags
+            if (!quick_facts.modality && offerBlock) {
+                const offerText = offerBlock.innerText.toLowerCase();
+                if (offerText.includes('100% remoto') || offerText.includes('teletrabajo') || offerText.includes('trabajo remoto')) {
+                    quick_facts.modality = 'Remoto';
+                } else if (offerText.includes('híbrido') || offerText.includes('hibrido')) {
+                    quick_facts.modality = 'Híbrido';
+                } else if (offerText.includes('modalidad presencial') || offerText.includes('modo presencial')) {
+                    quick_facts.modality = 'Presencial';
+                }
+            }
+
+            // 7. Descripcion del cargo:
+            //    Primero buscar p.mbB largo dentro de div[div-link="oferta"]
+            //    (es el parrafo principal de la oferta, ej: linea 539-572 del HTML real)
+            if (offerBlock) {
+                const descParas = Array.from(offerBlock.querySelectorAll('p.mbB'));
+                // Tomar el p.mbB mas largo como descripcion
+                let longestText = '';
+                for (const p of descParas) {
+                    const text = p.innerText.trim();
+                    if (text.length > longestText.length) longestText = text;
+                }
+                if (longestText.length > 50) {
+                    sections.description = longestText.substring(0, 8000);
+                }
+            }
+
+            // 8. Fallback: si no encontramos p.mbB, extraer todo el bloque limpio
+            if (!sections.description) {
+                const descEl = document.querySelector('#offer_description, .offer-description');
+                if (descEl) {
+                    sections.description = descEl.innerText.trim().substring(0, 8000);
+                } else if (offerBlock) {
+                    // Clonar el bloque de oferta y remover elementos no-texto
+                    const clone = offerBlock.cloneNode(true);
+                    clone.querySelectorAll([
+                        'script', 'style', 'noscript', 'iframe',
+                        '.b_primary', '.b_heart', '.posSticky_m',
+                        '.menu_switch', 'nav', '.box_info',
+                        'form', '.modal', '.popup'
+                    ].join(', ')).forEach(n => n.remove());
+                    sections.description = clone.innerText.trim().substring(0, 8000);
+                }
+            }
+
+            // 9. Intentar extraer sub-secciones por encabezados dentro del contenido
+            const fullDescText = sections.description || '';
+            const sectionPatterns = [
+                { key: 'responsibilities', patterns: ['responsabilidades', 'funciones del cargo', 'funciones principales', 'actividades principales', 'funciones:', 'principales retos', 'tus principales retos'] },
+                { key: 'benefits', patterns: ['beneficios', 'compensación', 'compensacion', 'te ofrecemos', 'ofrecemos:', 'qué ofrecemos', 'que ofrecemos'] },
+            ];
+            for (const sp of sectionPatterns) {
+                for (const pat of sp.patterns) {
+                    const idx = fullDescText.toLowerCase().indexOf(pat);
+                    if (idx !== -1) {
+                        let endIdx = fullDescText.length;
+                        const afterStart = idx + pat.length;
+                        for (const sp2 of sectionPatterns) {
+                            if (sp2.key === sp.key) continue;
+                            for (const pat2 of sp2.patterns) {
+                                const nextIdx = fullDescText.toLowerCase().indexOf(pat2, afterStart);
+                                if (nextIdx !== -1 && nextIdx < endIdx) endIdx = nextIdx;
+                            }
+                        }
+                        const reqIdx = fullDescText.toLowerCase().indexOf('requerimientos', afterStart);
+                        if (reqIdx !== -1 && reqIdx < endIdx) endIdx = reqIdx;
+                        const perfIdx = fullDescText.toLowerCase().indexOf('perfil que buscamos', afterStart);
+                        if (perfIdx !== -1 && perfIdx < endIdx) endIdx = perfIdx;
+
+                        const sectionText = fullDescText.substring(idx, Math.min(endIdx, idx + 3000)).trim();
+                        if (sectionText.length > 10 && !sections[sp.key]) {
+                            sections[sp.key] = sectionText;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Texto plano completo como fallback
+            const fallbackText = sections.description || '';
+
+            return {
+                text: fallbackText.substring(0, 15000),
+                quick_facts: quick_facts,
+                sections: sections
+            };
+        }''')
+    except Exception as e:
+        print(f"  [Browser] Error inyectando script de extraccion: {e}")
+        job_details = {"text": "", "quick_facts": {}, "sections": {}}
+
+    desc_text = job_details.get("text", "")
+    job["description"] = desc_text
+    job["quick_facts"] = job_details.get("quick_facts", {})
+    job["sections"] = job_details.get("sections", {})
+
+    # ── Debug log: JSON completo de la oferta ──
+    import json as _json_debug
+    print(f"[JSON OFERTA] {_json_debug.dumps(job, ensure_ascii=False, indent=2)}")
+
+    print(f"  [Browser] Generando resumen IA de la oferta...")
+    from bot.ai_responder import summarize_job
+    job["ai_summary"] = summarize_job(job["title"], job["company"], desc_text)
+
     answers = {}
+
 
     try:
         # Look for apply button
@@ -377,54 +598,127 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
         await apply_btn.first.click()
         await human_delay(2, 3)
 
-        # ── Detect question fields ──────────────────────────
-        question_inputs = page.locator(
-            "textarea, input[type='text']:not([type='hidden']), "
-            "input[placeholder*='?'], .application-question input, "
-            ".application-question textarea"
-        )
-        q_count = await question_inputs.count()
+        # --- Caso A: Detect "Ya aplicaste a esta oferta" message ---
+        # After clicking apply, Computrabajo may show a duplicate message
+        # instead of the application form. Detect and return sentinel.
+        try:
+            already_msg = page.locator(
+                "text='Ya aplicaste a esta oferta',"
+                "text='Ya te postulaste a esta oferta',"
+                "text='ya aplicaste',"
+                ":has-text('Ya aplicaste a esta oferta')"
+            )
+            if await already_msg.count() > 0:
+                print(f"  [Browser] Oferta ya aplicada anteriormente en Computrabajo")
+                await _emit_review_request(job, page, {}, [])
+                return "already_applied", {}
+        except Exception:
+            pass  # Continue with normal flow if detection fails
+
+        # ── Detect question fields accurately (includes text, select, radio, checkbox) ───────
+        questions_raw = await page.evaluate('''() => {
+            const results = [];
+            const processedNames = new Set();
+            const els = document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
+            
+            // Helper: find the group label for a radio/checkbox by walking up the DOM
+            function findGroupLabel(el) {
+                // Strategy: walk up through parent containers looking for a label/heading
+                // that is NOT inside a radio option label
+                let node = el.parentElement;
+                for (let depth = 0; depth < 6 && node; depth++) {
+                    // Look for a clear heading/label in this container
+                    const candidates = node.querySelectorAll(':scope > label.mbB, :scope > p.mbB, :scope > h3, :scope > .form-label, :scope > label:not([for]), :scope > p:first-child, :scope > legend');
+                    for (const c of candidates) {
+                        // Skip if this element CONTAINS a radio/checkbox input (it's an option label, not group label)
+                        if (c.querySelector('input[type="radio"], input[type="checkbox"]')) continue;
+                        const txt = c.innerText.trim();
+                        if (txt && txt.length > 2) return txt;
+                    }
+                    node = node.parentElement;
+                }
+                return '';
+            }
+            
+            els.forEach(el => {
+                let type = el.tagName.toLowerCase();
+                let isSelect = false;
+                if (type === 'select') isSelect = true;
+                
+                if (type === 'input') {
+                    type = el.type.toLowerCase();
+                    if (['text', 'number', 'email', 'tel', 'password', 'url'].includes(type)) type = 'text';
+                    if (!['text', 'radio', 'checkbox'].includes(type) && !el.placeholder) return;
+                }
+                
+                if (type === 'radio' || type === 'checkbox') {
+                    const name = el.name;
+                    if (!name || processedNames.has(name)) return;
+                    processedNames.add(name);
+                    
+                    // Find group label (NOT the option label)
+                    let qText = findGroupLabel(el);
+                    
+                    const siblings = document.querySelectorAll(`input[type="${type}"][name="${name}"]`);
+                    const options = [];
+                    siblings.forEach(sib => {
+                        let optLabel = '';
+                        const sibL = sib.id ? document.querySelector(`label[for="${sib.id}"]`) : null;
+                        if (sibL) optLabel = sibL.innerText.trim();
+                        else if (sib.closest('label')) optLabel = sib.closest('label').innerText.trim();
+                        // Clean: remove the group label text from option labels
+                        if (qText) optLabel = optLabel.replace(qText, '').trim();
+                        // Use visible label, fall back to value (skip pure numeric internal values like "0", "1")
+                        const finalLabel = optLabel || (sib.value && !/^\\d+$/.test(sib.value) ? sib.value : '');
+                        if (finalLabel) options.push(finalLabel);
+                    });
+                    results.push({ text: qText || name, type, options, name, id: null });
+                } else {
+                    // Text, select, textarea: use standard label lookup
+                    let qText = '';
+                    const labelId = el.id ? document.querySelector(`label[for="${el.id}"]`) : null;
+                    if (labelId) qText = labelId.innerText.trim();
+                    if (!qText && el.closest('label')) qText = el.closest('label').innerText.trim();
+                    if (!qText && el.placeholder) qText = el.placeholder;
+                    if (!qText) {
+                        const container = el.closest('.application-question, .form-group, section, div.mbB, div');
+                        if (container) {
+                            const groupLabel = container.querySelector('label.mbB, p.mbB, h3, .form-label');
+                            if (groupLabel) qText = groupLabel.innerText.trim();
+                            else qText = container.innerText.split('\\n')[0].trim();
+                        }
+                    }
+                    
+                    if (isSelect) {
+                        const name = el.name || el.id;
+                        const options = Array.from(el.options).filter(o => o.value).map(o => o.text.trim());
+                        results.push({ text: qText || name, type: 'select', options, name, id: el.id });
+                    } else {
+                        if (!el.name && !el.id) el.setAttribute('data-bot-id', 'q_' + Math.random().toString(36).substr(2, 9));
+                        const name = el.name || el.id || el.getAttribute('data-bot-id');
+                        results.push({ text: qText || name, type: 'text', options: [], name, id: el.id || el.getAttribute('data-bot-id') });
+                    }
+                }
+            });
+            return results;
+        }''')
+
+        q_count = len(questions_raw)
         questions_to_ask = []
-        for i in range(q_count):
-            inp = question_inputs.nth(i)
-            q_text = ""
-
-            # Strategy 1: label[for=id]
-            inp_id = await inp.get_attribute("id")
-            if inp_id:
-                label_el = page.locator(f"label[for='{inp_id}']")
-                if await label_el.count() > 0:
-                    q_text = (await label_el.first.inner_text()).strip()
-
-            # Strategy 2: parent <label> wrapping the input
-            if not q_text:
-                parent_label = inp.locator("xpath=ancestor::label")
-                if await parent_label.count() > 0:
-                    q_text = (await parent_label.first.inner_text()).strip()
-
-            # Strategy 3: aria-label attribute
-            if not q_text:
-                aria = await inp.get_attribute("aria-label")
-                if aria:
-                    q_text = aria.strip()
-
-            # Strategy 4: preceding sibling text (common in forms)
-            if not q_text:
-                prev_text = inp.locator("xpath=preceding-sibling::*[1]")
-                if await prev_text.count() > 0:
-                    q_text = (await prev_text.first.inner_text()).strip()
-
-            # Strategy 5: placeholder
-            if not q_text:
-                placeholder = await inp.get_attribute("placeholder")
-                if placeholder:
-                    q_text = placeholder.strip()
-
-            # Last resort
-            if not q_text:
-                q_text = f"Pregunta {i+1}"
-
+        for q in questions_raw:
+            q_text = q['text']
+            if q['type'] in ['select', 'radio', 'checkbox']:
+                q_text += f" ({q['type']}, Opciones: {', '.join(q['options'])})"
             questions_to_ask.append(q_text)
+
+        # ── Log detected questions ──────────────
+        if questions_to_ask:
+            print("[PREGUNTAS DETECTADAS]")
+            for idx, q in enumerate(questions_raw):
+                tipo = q.get('type', '?')
+                opts = q.get('options', [])
+                opts_str = f", opciones: {', '.join(opts)}" if opts else ""
+                print(f"  {idx+1}. {q['text']} (tipo: {tipo}{opts_str})")
 
         # ── Batch answer all questions via LLM ──────────────
         batch_answers = {}
@@ -442,33 +736,23 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                 batch_answers = {}
                 model_used_for_batch = "error"
 
-        # ── Process each question ───────────────────────────
-        for i in range(q_count):
-            inp = question_inputs.nth(i)
-            # Use the same question text detected in the first pass
-            question_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
-
-            if not question_text:
-                continue
-
+        # ── Process each question ──────────
+        for i, q in enumerate(questions_raw):
+            question_text = questions_to_ask[i]
+            
             # Resolve answer from batch or fallback
             if question_text in batch_answers:
                 answer_data = batch_answers[question_text]
                 model_used = model_used_for_batch
             else:
-                # Fallback: individual call (returns enriched dict too)
                 answer_data_raw, model_used = answer_question(
-                    question_text,
-                    job_title=job["title"],
-                    company=job["company"]
+                    question_text, job_title=job["title"], company=job["company"]
                 )
-                # answer_question returns (str|dict, str) — normalize
                 if isinstance(answer_data_raw, dict):
                     answer_data = answer_data_raw
                 else:
                     answer_data = {"respuesta": str(answer_data_raw), "tipo": "fallback", "confianza": "media"}
 
-            # Extract the actual text to fill
             if isinstance(answer_data, dict):
                 ai_answer = answer_data.get("respuesta", "")
                 tipo = answer_data.get("tipo", "desconocido")
@@ -481,6 +765,16 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             # ── Missing Data: pause and request from user ──
             if "DATO_FALTANTE" in str(ai_answer) or confianza == "baja":
                 import json as _json_missing
+                
+                # Fetch original options if it was a select/radio
+                orig_options = []
+                orig_type = "text"
+                for q_obj in questions_to_ask:
+                    if q_obj.get("question") == question_text:
+                        orig_options = q_obj.get("options", [])
+                        orig_type = q_obj.get("type", "text")
+                        break
+
                 missing_marker = {
                     "type": "missing_data",
                     "question": question_text,
@@ -488,6 +782,8 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
                     "company": job.get("company", ""),
                     "current_answer": str(ai_answer),
                     "confianza": confianza,
+                    "input_type": orig_type,
+                    "options": orig_options
                 }
                 print(f"[MISSING_DATA]{_json_missing.dumps(missing_marker, ensure_ascii=False)}")
                 print(f"  [WARN] Dato faltante para: '{question_text}' (confianza: {confianza})")
@@ -541,14 +837,18 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
             print(f"    - {conf_icon} '{question_text[:60]}...' [{model_used}] ({tipo})")
 
         # ── In dry-run-llm, stop here -- don't upload CV or submit ──
+        # Caso B: sin cuestionario -> proceso completo, se registra como 'applied'
+        # Caso C: con cuestionario -> respuestas LLM sin enviar, se registra como 'dry-run'
         if mode == "dry-run-llm":
-            print(f"  [DRY-RUN-LLM] Respuestas recopiladas sin enviar formulario.")
-            # Still emit review data so the dashboard can show it
-            await _emit_review_request(job, page, answers)
+            if answers:
+                print(f"  [DRY-RUN-LLM] Respuestas recopiladas sin enviar formulario.")
+            else:
+                print(f"  [DRY-RUN-LLM] Sin cuestionario - proceso completado.")
+            await _emit_review_request(job, page, answers, questions_raw)
             return True, answers
 
         # ── Emit review request for ALL modes ──
-        review_data = await _emit_review_request(job, page, answers)
+        review_data = await _emit_review_request(job, page, answers, questions_raw)
 
         # ── Semi-auto: wait for user review ──
         if mode == "semi-auto" and answers:
@@ -621,13 +921,61 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
 
         # ── Fill form fields ──
         print(f"  [Browser] Llenando {q_count} campos del formulario...")
-        for i in range(q_count):
-            inp = question_inputs.nth(i)
-            q_text = questions_to_ask[i] if i < len(questions_to_ask) else f"Pregunta {i+1}"
+        for i, q in enumerate(questions_raw):
+            q_text = questions_to_ask[i]
             if q_text in answers:
                 try:
                     answer_val = str(answers[q_text].get("answer", ""))
-                    await inp.fill(answer_val)
+                    if not answer_val or answer_val.upper() == "DATO_FALTANTE":
+                        continue
+                        
+                    if q["type"] == "text":
+                        selector = f"#{q['id']}" if q.get("id") else f"[name='{q['name']}']" if q.get("name") else f"[data-bot-id='{q.get('id', '')}']"
+                        await page.locator(selector).first.fill(answer_val)
+                        
+                    elif q["type"] == "select":
+                        selector = f"#{q['id']}" if q.get("id") else f"[name='{q['name']}']"
+                        try:
+                            await page.locator(selector).first.select_option(label=answer_val)
+                        except Exception:
+                            # Intento extra relajado con javascript
+                            await page.evaluate(f'''([sel, val]) => {{
+                                const el = document.querySelector(sel);
+                                if (!el) return;
+                                for (let i=0; i<el.options.length; i++) {{
+                                    if (el.options[i].text.includes(val) || val.includes(el.options[i].text)) {{
+                                        el.selectedIndex = i;
+                                        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                        break;
+                                    }}
+                                }}
+                            }}''', [selector, answer_val])
+                            
+                    elif q["type"] == "radio":
+                        await page.evaluate(f'''([name, val]) => {{
+                            const radios = document.querySelectorAll(`input[type="radio"][name="${{name}}"]`);
+                            for (const r of radios) {{
+                                const label = r.id ? document.querySelector(`label[for="${{r.id}}"]`) : r.closest('label');
+                                const labelText = label ? label.innerText.trim() : r.value;
+                                if (labelText.includes(val) || val.includes(labelText) || r.value === val) {{
+                                    r.click();
+                                    break;
+                                }}
+                            }}
+                        }}''', [q["name"], answer_val])
+                        
+                    elif q["type"] == "checkbox":
+                        vals = [v.strip() for v in answer_val.split(',')]
+                        await page.evaluate(f'''([name, vals]) => {{
+                            const checks = document.querySelectorAll(`input[type="checkbox"][name="${{name}}"]`);
+                            for (const c of checks) {{
+                                const label = c.id ? document.querySelector(`label[for="${{c.id}}"]`) : c.closest('label');
+                                const labelText = label ? label.innerText.trim() : c.value;
+                                const shouldBeChecked = vals.some(v => labelText.includes(v) || v.includes(labelText) || c.value === v);
+                                if (shouldBeChecked !== c.checked) c.click();
+                            }}
+                        }}''', [q["name"], vals])
+                    
                     await human_delay(0.3, 0.8)
                     print(f"    [OK] Campo {i+1} llenado: '{q_text[:40]}...'")
                 except Exception as e:
@@ -663,19 +1011,10 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply") -> tuple[bool
         return False, answers
 
 
-async def _emit_review_request(job: dict, page, answers: dict) -> dict:
+async def _emit_review_request(job: dict, page, answers: dict, questions: list = None) -> dict:
     """Emit a REVIEW_REQUEST marker to stdout so bot_runner broadcasts it.
     Works in ALL modes so the dashboard always shows current offer."""
     import json as _json
-
-    # Extract job description from the page
-    desc_text = ""
-    try:
-        desc_el = page.locator(".job_info_content, .cm-info, .box_detail, .job-description, article")
-        if await desc_el.count() > 0:
-            desc_text = (await desc_el.first.inner_text()).strip()[:3000]
-    except Exception:
-        pass
 
     review_data = {
         "type": "review_request",
@@ -685,9 +1024,13 @@ async def _emit_review_request(job: dict, page, answers: dict) -> dict:
             "location": job.get("location", ""),
             "salary": job.get("salary", ""),
             "url": job.get("url", ""),
-            "description": desc_text,
+            "description": job.get("description", ""),
+            "ai_summary": job.get("ai_summary", ""),
+            "quick_facts": job.get("quick_facts", {}),
+            "sections": job.get("sections", {}),
         },
         "answers": answers,
+        "questions": questions or []
     }
 
     # Print the JSON marker so bot_runner broadcasts it to WebSocket clients

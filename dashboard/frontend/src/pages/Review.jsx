@@ -12,8 +12,29 @@ export default function Review() {
     const [selectedCv, setSelectedCv] = useState('')
     const [missingData, setMissingData] = useState(null)
     const [missingAnswer, setMissingAnswer] = useState('')
+    const [timeLeft, setTimeLeft] = useState(300)
     const [jobExpanded, setJobExpanded] = useState(true)
+    const [viewMode, setViewMode] = useState('original')  // 'original' | 'ai'
+    const [openSections, setOpenSections] = useState(new Set(['description']))
     const miniLogRef = useRef(null)
+
+    // Countdown Timer for Missing Data
+    useEffect(() => {
+        if (!missingData) {
+            setTimeLeft(300)
+            return
+        }
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer)
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+        return () => clearInterval(timer)
+    }, [missingData])
 
     useEffect(() => {
         fetch(`${API}/config/cvs`).then(r => r.json()).then(d => setCvs(d.cvs || [])).catch(() => { })
@@ -111,19 +132,40 @@ export default function Review() {
 
     const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
     const input = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
-    const isRunning = status.status === 'running' || status.status === 'paused'
+    const isRunning = status.status === 'running' || status.status === 'paused' || status.status === 'paused_user'
     const isSemiAuto = status.mode === 'semi-auto'
 
     // Missing data prompt overlay
     if (missingData) {
+        const isTimeUp = timeLeft === 0;
+        const progressPercent = (timeLeft / 300) * 100;
+        const isUrgent = timeLeft < 60;
+        const progressColor = isUrgent ? 'var(--error)' : 'var(--accent)';
+
         return (
             <div className="space-y-6">
                 <h1 className="text-2xl font-bold">Dato Faltante</h1>
-                <div className="rounded-xl p-6 space-y-4" style={{ ...card, borderColor: 'var(--warning)' }}>
-                    <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full bg-yellow-500 animate-pulse" />
-                        <span className="text-sm font-bold" style={{ color: 'var(--warning)' }}>El bot necesita informacion</span>
+                <div className="rounded-xl p-6 space-y-4" style={{ ...card, borderColor: isTimeUp ? 'var(--error)' : 'var(--warning)', transition: 'border-color 0.3s' }}>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className={`w-3 h-3 rounded-full ${isTimeUp ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                            <span className="text-sm font-bold" style={{ color: isTimeUp ? 'var(--error)' : 'var(--warning)' }}>
+                                {isTimeUp ? 'Tiempo agotado' : 'El bot necesita informacion'}
+                            </span>
+                        </div>
+
+                        {/* Countdown Timer */}
+                        <div className="flex flex-col items-end gap-1">
+                            <span className="text-xs font-bold font-mono" style={{ color: isUrgent ? 'var(--error)' : 'var(--text-primary)' }}>
+                                {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} restantes
+                            </span>
+                            <div className="w-32 h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-hover)' }}>
+                                <div className="h-full transition-all duration-1000 ease-linear"
+                                    style={{ width: `${progressPercent}%`, backgroundColor: progressColor }} />
+                            </div>
+                        </div>
                     </div>
+
                     <div className="text-sm space-y-1" style={{ color: 'var(--text-secondary)' }}>
                         <p><strong>Oferta:</strong> {missingData.job_title} | {missingData.company}</p>
                         <p><strong>Pregunta:</strong> {missingData.question}</p>
@@ -132,22 +174,61 @@ export default function Review() {
                         )}
                         <p><strong>Confianza:</strong> {missingData.confianza}</p>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Tu respuesta (tienes 5 min):</label>
-                        <input type="text" value={missingAnswer} onChange={e => setMissingAnswer(e.target.value)}
-                            placeholder="Escribe la respuesta aqui..."
-                            onKeyDown={e => e.key === 'Enter' && sendMissingData()}
-                            className="w-full rounded-lg px-4 py-3 text-sm" style={input}
-                            autoFocus />
+
+                    <div className="space-y-3 pt-2">
+                        <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Tu respuesta:</label>
+
+                        {/* Dynamic Input Rendering */}
+                        {isTimeUp ? (
+                            <div className="p-4 rounded-lg text-sm text-center" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--error)', border: '1px solid var(--error)' }}>
+                                El tiempo de espera término. El bot continuó u omitió la pregunta automáticamente.
+                            </div>
+                        ) : (
+                            <>
+                                {(missingData.input_type === 'radio' || missingData.input_type === 'select') && missingData.options && missingData.options.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {missingData.options.map((opt, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => setMissingAnswer(opt)}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${missingAnswer === opt ? 'shadow-md scale-105' : 'hover:bg-opacity-80'}`}
+                                                style={{
+                                                    background: missingAnswer === opt ? 'var(--accent)' : 'var(--bg-hover)',
+                                                    color: missingAnswer === opt ? '#fff' : 'var(--text-primary)',
+                                                    border: `1px solid ${missingAnswer === opt ? 'var(--accent)' : 'var(--border)'}`
+                                                }}
+                                            >
+                                                {opt}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : missingData.input_type === 'number' ? (
+                                    <input type="number" value={missingAnswer} onChange={e => setMissingAnswer(e.target.value)}
+                                        placeholder="Escribe el número aquí..."
+                                        onKeyDown={e => e.key === 'Enter' && sendMissingData()}
+                                        className="w-full rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2"
+                                        style={{ ...input, '--tw-ring-color': 'var(--accent)' }}
+                                        autoFocus />
+                                ) : (
+                                    <input type="text" value={missingAnswer} onChange={e => setMissingAnswer(e.target.value)}
+                                        placeholder="Escribe la respuesta aqui..."
+                                        onKeyDown={e => e.key === 'Enter' && sendMissingData()}
+                                        className="w-full rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2"
+                                        style={{ ...input, '--tw-ring-color': 'var(--accent)' }}
+                                        autoFocus />
+                                )}
+                            </>
+                        )}
                     </div>
-                    <div className="flex gap-3">
-                        <button onClick={sendMissingData}
-                            className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition"
-                            style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
+
+                    <div className="flex gap-3 pt-2">
+                        <button onClick={sendMissingData} disabled={isTimeUp}
+                            className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition ${isTimeUp ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
+                            style={{ background: isTimeUp ? 'var(--bg-hover)' : 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: isTimeUp ? 'var(--text-muted)' : '#fff' }}>
                             Enviar Dato
                         </button>
-                        <button onClick={() => { setMissingData(null); setMissingAnswer('') }}
-                            className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition"
+                        <button onClick={() => { setMissingData(null); setMissingAnswer('') }} disabled={isTimeUp}
+                            className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition ${isTimeUp ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
                             style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
                             Omitir
                         </button>
@@ -221,6 +302,22 @@ export default function Review() {
     const answers = current.answers || {}
     const answerCount = Object.keys(answers).length
 
+    // Normalize quick facts and sections for the two-zone layout
+    const qf = job.quick_facts || {}
+    const aiSummary = (typeof job.ai_summary === 'object' && job.ai_summary !== null) ? job.ai_summary : {}
+    const aiQf = aiSummary  // AI summary quick fields (salario, contrato, etc.)
+
+    // Original sections from browser extraction
+    const origSections = job.sections || {}
+    // AI sections from summarize_job structured response
+    const aiSections = {
+        description: aiSummary.description || '',
+        requirements: aiSummary.requirements || '',
+        responsibilities: aiSummary.responsibilities || '',
+        benefits: aiSummary.benefits || '',
+        keywords: aiSummary.keywords || '',
+    }
+
     return (
         <div className="space-y-4">
             {/* Header */}
@@ -235,16 +332,30 @@ export default function Review() {
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono" style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
                         {status.mode || 'apply'}
                     </span>
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                    <button onClick={stopBot}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
-                        style={{ background: 'var(--error)', color: '#fff' }}>
-                        Detener
-                    </button>
+                    {isRunning && (
+                        <>
+                            <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+                            <button onClick={async () => {
+                                const endpoint = status.status === 'paused_user' ? '/api/bot/resume' : '/api/bot/pause'
+                                await fetch(endpoint, { method: 'POST' })
+                                const s = await fetch('/api/bot/status').then(r => r.json())
+                                setStatus(s)
+                            }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
+                                style={{ background: status.status === 'paused_user' ? 'var(--success)' : 'var(--warning)', color: '#fff' }}>
+                                {status.status === 'paused_user' ? 'Reanudar' : 'Pausar'}
+                            </button>
+                            <button onClick={stopBot}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition hover:opacity-90"
+                                style={{ background: 'var(--error)', color: '#fff' }}>
+                                Detener
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
-            {/* Job summary card */}
+            {/* Job detail — Two-zone layout */}
             <div className="rounded-xl overflow-hidden" style={card}>
                 <button onClick={() => setJobExpanded(!jobExpanded)}
                     className="w-full flex items-center justify-between px-5 py-4 text-left hover:opacity-90 transition"
@@ -253,8 +364,8 @@ export default function Review() {
                         <h2 className="font-bold text-lg" style={{ color: 'var(--accent)' }}>{job.title || 'Sin titulo'}</h2>
                         <div className="flex flex-wrap gap-2 mt-1">
                             {job.company && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(139,92,246,0.15)', color: 'var(--accent-purple)' }}>{job.company}</span>}
-                            {job.location && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent)' }}>{job.location}</span>}
-                            {job.salary && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--success)' }}>{job.salary}</span>}
+                            {(job.location || qf.location) && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent)' }}>{job.location || qf.location}</span>}
+                            {(job.salary || qf.salary) && <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--success)' }}>{job.salary || qf.salary}</span>}
                         </div>
                     </div>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -263,15 +374,138 @@ export default function Review() {
                     </svg>
                 </button>
                 {jobExpanded && (
-                    <div className="px-5 pb-4 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
-                        {job.url && (
-                            <a href={job.url} target="_blank" rel="noopener noreferrer"
-                                className="inline-block text-xs hover:underline mt-2" style={{ color: 'var(--accent)' }}>
-                                Ver oferta original
-                            </a>
-                        )}
-                        <div className="text-sm leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto" style={{ color: 'var(--text-secondary)' }}>
-                            {job.description || 'Descripcion no disponible.'}
+                    <div style={{ borderTop: '1px solid var(--border)' }}>
+                        <div className="flex items-center justify-between px-5 pt-3 pb-1">
+                            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Detalle de la oferta</span>
+                            {job.url && (
+                                <a href={job.url} target="_blank" rel="noopener noreferrer"
+                                    className="text-xs hover:underline" style={{ color: 'var(--accent)' }}>
+                                    Ver oferta en web &#8599;
+                                </a>
+                            )}
+                        </div>
+
+                        {/* Two-zone layout: quick facts (left) + accordion (right) */}
+                        <div className="review-detail-grid" style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(220px, 30%) 1fr',
+                            gap: '0',
+                            minHeight: '380px',
+                        }}>
+                            {/* === ZONA IZQUIERDA — Datos rapidos === */}
+                            <div className="px-4 py-3" style={{ borderRight: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+                                <div className="text-xs font-bold mb-3" style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Datos rapidos
+                                </div>
+                                <div className="space-y-2">
+                                    {[
+                                        { icon: '\uD83D\uDCB0', label: 'Salario', value: qf.salary || aiQf.salario },
+                                        { icon: '\uD83D\uDCC4', label: 'Contrato', value: qf.contract || aiQf.contrato },
+                                        { icon: '\uD83D\uDD50', label: 'Jornada', value: qf.schedule || aiQf.jornada },
+                                        { icon: '\uD83D\uDCCD', label: 'Ubicacion', value: qf.location || job.location || aiQf.ubicacion },
+                                        { icon: '\uD83C\uDF93', label: 'Educacion', value: qf.education || aiQf.educacion },
+                                        { icon: '\u231B', label: 'Experiencia', value: qf.experience || aiQf.experiencia },
+                                        { icon: '\uD83C\uDFE2', label: 'Modalidad', value: qf.modality || aiQf.modalidad },
+                                        { icon: '\uD83D\uDCC5', label: 'Publicacion', value: qf.date || aiQf.fecha },
+                                    ].filter(item => item.value).map((item, idx) => (
+                                        <div key={idx} className="flex items-start gap-2 p-2 rounded-lg" style={{ background: 'var(--bg-card)' }}>
+                                            <span className="text-base shrink-0 mt-0.5">{item.icon}</span>
+                                            <div className="min-w-0">
+                                                <div className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)', textTransform: 'uppercase' }}>{item.label}</div>
+                                                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)', wordBreak: 'break-word' }}>{item.value}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Fallback si no hay datos */}
+                                    {![qf.salary, qf.contract, qf.schedule, qf.location, job.location, qf.education, qf.experience, qf.modality, qf.date,
+                                    aiQf.salario, aiQf.contrato, aiQf.jornada, aiQf.ubicacion, aiQf.educacion, aiQf.experiencia, aiQf.modalidad, aiQf.fecha
+                                    ].some(Boolean) && (
+                                            <div className="text-xs italic p-2" style={{ color: 'var(--text-muted)' }}>Sin datos rapidos disponibles.</div>
+                                        )}
+                                </div>
+                            </div>
+
+                            {/* === ZONA DERECHA — Toggle + Acordeon === */}
+                            <div className="flex flex-col overflow-hidden">
+                                {/* Toggle: Texto Original / Resumen IA */}
+                                <div className="flex gap-0 px-4 pt-3 pb-2">
+                                    {['original', 'ai'].map(mode => (
+                                        <button key={mode} onClick={() => setViewMode(mode)}
+                                            className="px-5 py-2 text-xs font-bold transition-all rounded-t-lg"
+                                            style={{
+                                                background: viewMode === mode
+                                                    ? (mode === 'original' ? 'rgba(59,130,246,0.15)' : 'rgba(139,92,246,0.15)')
+                                                    : 'transparent',
+                                                color: viewMode === mode
+                                                    ? (mode === 'original' ? 'var(--accent)' : 'var(--accent-purple)')
+                                                    : 'var(--text-muted)',
+                                                borderBottom: viewMode === mode
+                                                    ? `2px solid ${mode === 'original' ? 'var(--accent)' : 'var(--accent-purple)'}`
+                                                    : '2px solid transparent',
+                                            }}>
+                                            {mode === 'original' ? 'Texto Original' : 'Resumen IA'}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Accordion sections */}
+                                <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1" style={{ maxHeight: '420px' }}>
+                                    {(() => {
+                                        const sec = viewMode === 'original' ? origSections : aiSections
+                                        const sectionDefs = [
+                                            { key: 'description', label: 'Descripcion del cargo' },
+                                            { key: 'requirements', label: 'Perfil requerido / Requisitos' },
+                                            { key: 'responsibilities', label: 'Responsabilidades principales' },
+                                            { key: 'benefits', label: 'Compensacion y beneficios' },
+                                            { key: 'keywords', label: 'Palabras clave' },
+                                        ]
+                                        const rendered = sectionDefs.filter(sd => sec[sd.key])
+                                        if (rendered.length === 0) {
+                                            return (
+                                                <div className="text-sm italic p-4" style={{ color: 'var(--text-muted)' }}>
+                                                    {viewMode === 'original'
+                                                        ? (job.description || 'Sin contenido disponible.')
+                                                        : (typeof job.ai_summary === 'string' ? job.ai_summary : 'Sin resumen IA disponible.')}
+                                                </div>
+                                            )
+                                        }
+                                        return rendered.map(({ key, label }) => {
+                                            const isOpen = openSections.has(key)
+                                            return (
+                                                <div key={key} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                                                    <button onClick={() => {
+                                                        setOpenSections(prev => {
+                                                            const next = new Set(prev)
+                                                            next.has(key) ? next.delete(key) : next.add(key)
+                                                            return next
+                                                        })
+                                                    }}
+                                                        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:opacity-90 transition"
+                                                        style={{ background: isOpen ? 'var(--bg-hover)' : 'var(--bg-card)' }}>
+                                                        <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{label}</span>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                                            style={{ color: 'var(--text-muted)', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
+                                                            <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                                                        </svg>
+                                                    </button>
+                                                    {isOpen && (
+                                                        <div className="px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap"
+                                                            style={{
+                                                                color: 'var(--text-secondary)',
+                                                                borderTop: '1px solid var(--border)',
+                                                                maxHeight: '300px',
+                                                                overflowY: 'auto',
+                                                                wordBreak: 'break-word',
+                                                            }}>
+                                                            {sec[key]}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })
+                                    })()}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -316,14 +550,75 @@ export default function Review() {
                                     Dato faltante -- edita la respuesta antes de enviar
                                 </div>
                             )}
-                            <textarea
-                                value={editedAnswers[question] || ''}
-                                onChange={e => updateAnswer(question, e.target.value)}
-                                rows={Math.max(4, Math.ceil((editedAnswers[question] || '').length / 80))}
-                                className="w-full rounded-lg px-4 py-3 text-sm resize-y leading-relaxed"
-                                style={{ ...input, minHeight: '100px' }}
-                                placeholder="Escribe o edita la respuesta aqui..."
-                            />
+                            {(() => {
+                                const qInfo = (current.questions || []).find(q =>
+                                    question.startsWith(q.text) || q.text.startsWith(question)
+                                )
+                                const type = qInfo ? qInfo.type : 'text'
+                                const options = qInfo ? qInfo.options : []
+
+                                if (type === 'radio') {
+                                    return (
+                                        <div className="flex flex-col gap-2 mt-2">
+                                            {options.map((opt, idx) => (
+                                                <label key={idx} className="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition" style={{ hover: 'background: var(--bg-hover)' }}>
+                                                    <input type="radio" name={`q_${i}`} value={opt}
+                                                        checked={editedAnswers[question] === opt}
+                                                        onChange={e => updateAnswer(question, e.target.value)}
+                                                        className="w-4 h-4 accent-blue-500" />
+                                                    <span style={{ color: 'var(--text-primary)' }}>{opt}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )
+                                }
+                                if (type === 'select') {
+                                    return (
+                                        <select value={editedAnswers[question] || ''} onChange={e => updateAnswer(question, e.target.value)}
+                                            className="w-full rounded-lg px-4 py-3 text-sm mt-2" style={input}>
+                                            <option value="">Selecciona una opcion...</option>
+                                            {options.map((opt, idx) => (
+                                                <option key={idx} value={opt}>{opt}</option>
+                                            ))}
+                                        </select>
+                                    )
+                                }
+                                if (type === 'checkbox') {
+                                    const selectedVals = (editedAnswers[question] || '').split(',').map(v => v.trim()).filter(v => v)
+                                    return (
+                                        <div className="flex flex-col gap-2 mt-2">
+                                            {options.map((opt, idx) => {
+                                                const isChecked = selectedVals.includes(opt)
+                                                return (
+                                                    <label key={idx} className="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg transition" style={{ hover: 'background: var(--bg-hover)' }}>
+                                                        <input type="checkbox" value={opt}
+                                                            checked={isChecked}
+                                                            onChange={e => {
+                                                                if (e.target.checked) {
+                                                                    updateAnswer(question, [...selectedVals, opt].join(', '))
+                                                                } else {
+                                                                    updateAnswer(question, selectedVals.filter(v => v !== opt).join(', '))
+                                                                }
+                                                            }}
+                                                            className="w-4 h-4 rounded accent-blue-500" />
+                                                        <span style={{ color: 'var(--text-primary)' }}>{opt}</span>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    )
+                                }
+                                return (
+                                    <textarea
+                                        value={editedAnswers[question] || ''}
+                                        onChange={e => updateAnswer(question, e.target.value)}
+                                        rows={Math.max(4, Math.ceil((editedAnswers[question] || '').length / 80))}
+                                        className="w-full rounded-lg px-4 py-3 text-sm resize-y leading-relaxed mt-2"
+                                        style={{ ...input, minHeight: '100px' }}
+                                        placeholder="Escribe o edita la respuesta aqui..."
+                                    />
+                                )
+                            })()}
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                                     Tipo: {meta.tipo || '-'} | Modelo: {meta.model || meta.modelo || '-'}

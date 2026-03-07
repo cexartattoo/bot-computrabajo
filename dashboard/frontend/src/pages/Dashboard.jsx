@@ -5,13 +5,15 @@ import { useBot } from '../context/BotContext'
 const API = '/api'
 const STATUS_COLORS = {
     idle: 'bg-slate-600', running: 'bg-green-500 animate-pulse',
-    paused: 'bg-yellow-500 animate-pulse', error: 'bg-red-500',
+    paused: 'bg-yellow-500 animate-pulse', paused_user: 'bg-yellow-500',
+    error: 'bg-red-500',
     stopping: 'bg-orange-500 animate-pulse',
     disconnected: 'bg-orange-500 animate-pulse',
 }
 const STATUS_LABELS = {
     idle: 'Inactivo', running: 'Corriendo',
-    paused: 'Esperando confirmacion', error: 'Error',
+    paused: 'Esperando confirmacion', paused_user: 'Pausado',
+    error: 'Error',
     stopping: 'Deteniendo...',
     disconnected: 'Conectando con API...',
 }
@@ -75,15 +77,9 @@ export default function Dashboard() {
         setLoading(false)
     }
 
-    const confirm = async (approved) => {
-        await fetch(`${API}/bot/confirm`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ approved }),
-        })
-        fetch(`${API}/bot/status`).then(r => r.json()).then(setStatus).catch(() => { })
-    }
 
-    const isRunning = status.status === 'running' || status.status === 'paused'
+
+    const isRunning = status.status === 'running' || status.status === 'paused' || status.status === 'paused_user'
 
     const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
     const input = { background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }
@@ -149,11 +145,25 @@ export default function Dashboard() {
                             Iniciar Bot
                         </button>
                     ) : (
-                        <button onClick={stopBot} disabled={loading}
-                            className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
-                            style={{ background: 'var(--error)', color: '#fff' }}>
-                            Detener
-                        </button>
+                        <>
+                            <button onClick={async () => {
+                                const endpoint = status.status === 'paused_user' ? `${API}/bot/resume` : `${API}/bot/pause`
+                                setLoading(true)
+                                await fetch(endpoint, { method: 'POST' })
+                                const s = await fetch(`${API}/bot/status`).then(r => r.json())
+                                setStatus(prev => ({ ...prev, ...s }))
+                                setLoading(false)
+                            }} disabled={loading}
+                                className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
+                                style={{ background: status.status === 'paused_user' ? 'var(--success)' : 'var(--warning)', color: '#fff' }}>
+                                {status.status === 'paused_user' ? 'Reanudar' : 'Pausar'}
+                            </button>
+                            <button onClick={stopBot} disabled={loading}
+                                className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition disabled:opacity-50"
+                                style={{ background: 'var(--error)', color: '#fff' }}>
+                                Detener
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -171,24 +181,27 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Semi-auto confirmation */}
+            {/* Pending review Banner -- redirect to Review page for full context */}
             {status.pending_confirmation && (
                 <div className="rounded-xl p-5 space-y-3"
                     style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid var(--warning)' }}>
-                    <h3 className="font-bold" style={{ color: 'var(--warning)' }}>Confirmacion requerida</h3>
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{status.pending_confirmation.line || 'Oferta pendiente de revision'}</p>
-                    <div className="flex gap-3">
-                        <button onClick={() => confirm(true)}
-                            className="px-5 py-2 rounded-lg text-sm font-semibold"
-                            style={{ background: 'var(--success)', color: '#fff' }}>
-                            Aprobar
-                        </button>
-                        <button onClick={() => confirm(false)}
-                            className="px-5 py-2 rounded-lg text-sm font-semibold"
-                            style={{ background: 'var(--error)', color: '#fff' }}>
-                            Rechazar
-                        </button>
+                    <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-yellow-500 animate-pulse" />
+                        <h3 className="font-bold" style={{ color: 'var(--warning)' }}>Oferta pendiente de revision</h3>
                     </div>
+                    {status.pending_confirmation.data?.job && (
+                        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            <strong>{status.pending_confirmation.data.job.title}</strong> en <strong>{status.pending_confirmation.data.job.company || '?'}</strong>
+                            {status.pending_confirmation.data.answers && (
+                                <span> | {Object.keys(status.pending_confirmation.data.answers).length} preguntas</span>
+                            )}
+                        </div>
+                    )}
+                    <button onClick={() => navigate('/review')}
+                        className="px-6 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition"
+                        style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>
+                        Ir a Revision (ver detalles y aprobar/rechazar)
+                    </button>
                 </div>
             )}
 

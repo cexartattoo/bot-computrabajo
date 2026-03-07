@@ -40,7 +40,7 @@ def init_db():
                 location    TEXT,
                 salary      TEXT,
                 applied_at  TEXT DEFAULT (datetime('now','localtime')),
-                status      TEXT DEFAULT 'applied',  -- applied | skipped | error | dry-run
+                status      TEXT DEFAULT 'applied',  -- applied | skipped | error | dry-run | aplicado_anteriormente
                 answers_json TEXT,                   -- JSON of Q&A pairs
                 notes       TEXT,
                 mode        TEXT DEFAULT 'apply',     -- apply | dry-run-llm | semi-auto
@@ -120,7 +120,7 @@ def log_application(job_title: str, company: str, url: str,
                   notes, mode, cv_used))
         conn.commit()
 
-    status_icon = {"applied": "[OK]", "error": "[ERR]", "dry-run": "[DRY]"}.get(status, "[*]")
+    status_icon = {"applied": "[OK]", "error": "[ERR]", "dry-run": "[DRY]", "aplicado_anteriormente": "[DUP]"}.get(status, "[*]")
     # ✅ FIX: usar _safe_print para evitar UnicodeEncodeError en CP1252
     _safe_print(f"  [DB] {status_icon} Registrado: {job_title} @ {company} -- {status}")
 
@@ -140,13 +140,14 @@ def get_summary() -> dict:
         applied  = conn.execute("SELECT COUNT(*) FROM applications WHERE status='applied'").fetchone()[0]
         errors   = conn.execute("SELECT COUNT(*) FROM applications WHERE status='error'").fetchone()[0]
         dry_runs = conn.execute("SELECT COUNT(*) FROM applications WHERE status='dry-run'").fetchone()[0]
-    return {"total": total, "applied": applied, "errors": errors, "dry_runs": dry_runs}
+        prev_applied = conn.execute("SELECT COUNT(*) FROM applications WHERE status='aplicado_anteriormente'").fetchone()[0]
+    return {"total": total, "applied": applied, "errors": errors, "dry_runs": dry_runs, "prev_applied": prev_applied}
 
 
 def print_summary():
     s = get_summary()
     _safe_print(f"\n  Aplicaciones totales: {s['total']}")
-    _safe_print(f"  Exitosas: {s['applied']}  |  Errores: {s['errors']}  |  Dry-runs: {s['dry_runs']}")
+    _safe_print(f"  Exitosas: {s['applied']}  |  Errores: {s['errors']}  |  Dry-runs: {s['dry_runs']}  |  Ya aplicadas: {s['prev_applied']}")
 
 
 def generate_report(output_path: str = None) -> str:
@@ -167,6 +168,7 @@ def generate_report(output_path: str = None) -> str:
     applied  = sum(1 for r in rows if r['status'] == 'applied')
     errors   = sum(1 for r in rows if r['status'] == 'error')
     dry_runs = sum(1 for r in rows if r['status'] == 'dry-run')
+    prev_applied = sum(1 for r in rows if r['status'] == 'aplicado_anteriormente')
 
     # Model stats & Q&A collection
     model_counts = {}
@@ -256,6 +258,7 @@ def generate_report(output_path: str = None) -> str:
   .badge-applied {{ background: #166534; color: #bbf7d0; }}
   .badge-error {{ background: #7f1d1d; color: #fecaca; }}
   .badge-dry-run {{ background: #0c4a6e; color: #bae6fd; }}
+  .badge-aplicado_anteriormente {{ background: #4a3728; color: #fed7aa; }}
   .badge-model {{ background: #3730a3; color: #c7d2fe; }}
   .badge-alta {{ background: #166534; color: #bbf7d0; }}
   .badge-media {{ background: #854d0e; color: #fef08a; }}
@@ -287,6 +290,7 @@ def generate_report(output_path: str = None) -> str:
     <div class="stat-card success"><div class="number">{applied}</div><div class="label">Exitosas</div></div>
     <div class="stat-card error"><div class="number">{errors}</div><div class="label">Con Error</div></div>
     <div class="stat-card dry-run"><div class="number">{dry_runs}</div><div class="label">Dry-Run LLM</div></div>
+    <div class="stat-card warn"><div class="number">{prev_applied}</div><div class="label">Ya Aplicadas</div></div>
     <div class="stat-card model"><div class="number">{sum(len(j['questions']) for j in qa_by_job.values())}</div><div class="label">Preguntas Respondidas</div></div>
     <div class="stat-card warn"><div class="number">{len(warnings)}</div><div class="label">Advertencias</div></div>
   </div>

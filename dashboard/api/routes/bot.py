@@ -2,11 +2,16 @@
 Bot Control Routes — start, stop, status, confirm, WebSocket logs.
 """
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
+from pathlib import Path
 
 from dashboard.api.services.bot_runner import bot_manager
 from dashboard.api.services.auth import get_current_user
+
+# Determine project root path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 router = APIRouter()
 
@@ -31,6 +36,17 @@ async def start_bot(body: BotStartRequest, user=Depends(get_current_user)):
 @router.post("/stop")
 async def stop_bot(user=Depends(get_current_user)):
     return await bot_manager.stop()
+
+
+@router.post("/pause")
+async def pause_bot(user=Depends(get_current_user)):
+    return await bot_manager.pause()
+
+
+@router.post("/resume")
+async def resume_bot(user=Depends(get_current_user)):
+    return await bot_manager.resume()
+
 
 
 @router.get("/status")
@@ -60,6 +76,20 @@ class MissingDataResponse(BaseModel):
 @router.post("/respond_missing")
 async def respond_missing(body: MissingDataResponse, user=Depends(get_current_user)):
     return await bot_manager.respond_missing(answer=body.answer)
+
+
+@router.get("/screen")
+async def get_bot_screen(user=Depends(get_current_user)):
+    """Serves the latest bot screenshot for live streaming"""
+    screen_path = PROJECT_ROOT / ".semi_auto" / "screen.jpg"
+    if not screen_path.exists():
+        return {"error": "Screen not available"}
+    
+    return FileResponse(
+        screen_path, 
+        media_type="image/jpeg", 
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 
 @router.websocket("/ws")
