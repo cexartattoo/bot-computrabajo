@@ -7,7 +7,7 @@ const API = '/api'
    SVG State Indicators (from bot_states.html)
    ══════════════════════════════════════════════════════════════ */
 
-function BotOfflineSVG() {
+function BotOfflineSVG({ error = false }) {
     return (
         <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -32,7 +32,9 @@ function BotOfflineSVG() {
             <circle cx="94" cy="95" r="5" fill="#1a1a2e" stroke="#333" strokeWidth="1" />
             <rect x="26" y="72" width="18" height="10" rx="5" fill="#1e1e32" stroke="#333355" strokeWidth="1.5" />
             <rect x="116" y="72" width="18" height="10" rx="5" fill="#1e1e32" stroke="#333355" strokeWidth="1.5" />
-            <text x="80" y="138" textAnchor="middle" fill="#333355" fontSize="11" fontFamily="monospace" fontWeight="bold">OFFLINE</text>
+            <text x="80" y="138" textAnchor="middle" fill="#333355" fontSize="11" fontFamily="monospace" fontWeight="bold">
+                {error ? "ERROR - ver terminal" : "OFFLINE"}
+            </text>
         </svg>
     )
 }
@@ -485,28 +487,77 @@ export default function BotStream() {
         setViewMode(prev => prev === 'minimized' ? 'normal' : 'minimized')
     }, [])
 
-    // Determine which SVG to show when not streaming
-    const renderIdleSVG = () => {
-        if (botStatus === 'running' && !currentSrc) {
+    // Determine the exact mode/SVG content according to the state map:
+    // sin_iniciar          → SVG bot_offline (robot ojos X, OFFLINE)
+    // iniciando            → SVG bot_loading (robot parpadeante, INICIANDO...)
+    // corriendo_normal     → screenshot en vivo del navegador
+    // ia_procesando        → screenshot + overlay "IA PROCESANDO" encima
+    // pausado              → screenshot + overlay pausa (ícono naranja)
+    // completado           → SVG bot_done (robot satisfecho, COMPLETADO)
+    // error_fatal          → SVG bot_offline con texto "ERROR — ver terminal"
+    const renderContent = () => {
+        // 1. Error Fatal
+        if (botStatus === 'error' || botStatus === 'disconnected' || botStatus === 'stopping') {
             return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
-                    <BotLoadingSVG />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', height: '100%' }}>
+                    <BotOfflineSVG error={true} />
                 </div>
             )
         }
-        if (botStatus === 'idle' || botStatus === 'error' || botStatus === 'disconnected' || botStatus === 'stopping') {
+
+        // 2. Completado (idle with apps processed)
+        if (botStatus === 'idle' && status?.apps_this_session > 0) {
             return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
-                    <BotOfflineSVG />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', height: '100%' }}>
+                    <BotDoneSVG />
                 </div>
             )
         }
-        // For completed/stopped sessions that went back to idle
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
-                <BotOfflineSVG />
-            </div>
-        )
+
+        // 3. Sin Iniciar (idle with no apps processed)
+        if (botStatus === 'idle') {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', height: '100%' }}>
+                    <BotOfflineSVG error={false} />
+                </div>
+            )
+        }
+
+        // 4. Corriendo (Normal, IA Processing, or Paused)
+        if (isRunning) {
+            if (currentSrc && isBrowserReady) {
+                return (
+                    <>
+                        {/* En vivo */}
+                        <img src={currentSrc} alt="Bot screen stream" style={{ maxWidth: '100%', maxHeight: '100%', width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+
+                        {/* AI Processing Overlay */}
+                        {aiProcessing && !isPaused && (
+                            <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+                                <BotAiWorkingSVG compact={isMinimized || (panelSize.width < 400 && !isExpanded)} />
+                            </div>
+                        )}
+
+                        {/* Pause Overlay */}
+                        {isPaused && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 2 }}>
+                                <PauseOverlaySVG />
+                                <span style={{ color: '#ffaa00', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px' }}>PAUSADO</span>
+                            </div>
+                        )}
+                    </>
+                )
+            } else {
+                // Iniciando (Running but waiting for screenshot > 5KB)
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px', height: '100%' }}>
+                        <BotLoadingSVG />
+                    </div>
+                )
+            }
+        }
+
+        return null
     }
 
     const isExpanded = viewMode === 'expanded'
@@ -644,55 +695,7 @@ export default function BotStream() {
                         overflow: 'hidden',
                     }}>
                         {/* Main content: stream or SVG state */}
-                        {isRunning && currentSrc && isBrowserReady ? (
-                            <img
-                                src={currentSrc}
-                                alt="Bot screen stream"
-                                style={{
-                                    maxWidth: '100%',
-                                    maxHeight: '100%',
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'contain',
-                                    display: 'block',
-                                }}
-                            />
-                        ) : isRunning && !currentSrc ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>
-                                <BotLoadingSVG />
-                            </div>
-                        ) : (
-                            renderIdleSVG()
-                        )}
-
-                        {/* AI Processing Overlay */}
-                        {aiProcessing && currentSrc && !isPaused && (
-                            <div style={{
-                                position: 'absolute',
-                                inset: 0,
-                                zIndex: 1,
-                            }}>
-                                <BotAiWorkingSVG compact={isMinimized || (panelSize.width < 400 && !isExpanded)} />
-                            </div>
-                        )}
-
-                        {/* Pause overlay */}
-                        {isPaused && currentSrc && (
-                            <div style={{
-                                position: 'absolute',
-                                inset: 0,
-                                background: 'rgba(0,0,0,0.55)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                zIndex: 2,
-                            }}>
-                                <PauseOverlaySVG />
-                                <span style={{ color: '#ffaa00', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px' }}>PAUSADO</span>
-                            </div>
-                        )}
+                        {renderContent()}
                     </div>
                 )}
 

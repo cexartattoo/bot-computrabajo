@@ -639,7 +639,6 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
             )
             if await already_msg.count() > 0:
                 print(f"  [Browser] Oferta ya aplicada anteriormente en Computrabajo")
-                await _emit_review_request(job, page, {}, [])
                 return "already_applied", {}
         except Exception:
             pass  # Continue with normal flow if detection fails

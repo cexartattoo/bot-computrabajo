@@ -238,6 +238,14 @@ export default function Dashboard() {
     } else if (status.status === 'idle' && status.apps_this_session > 0 && !acknowledgedCompletion) {
         stage = 'completed'
     }
+    const isAlreadyApplied = currentReview?.job?.status === 'aplicado_anteriormente' || currentReview?.job?.status === 'already_applied';
+    const aiSummaryStr = typeof currentReview?.job?.ai_summary === 'object'
+        ? currentReview?.job?.ai_summary?.description
+        : currentReview?.job?.ai_summary;
+    const hasEmptyData = currentReview?.job &&
+        (!currentReview.job.description || currentReview.job.description.trim() === '') &&
+        (!currentReview.job.quick_facts || Object.keys(currentReview.job.quick_facts).length === 0) &&
+        (!aiSummaryStr || aiSummaryStr === 'Resumen IA no disponible.');
 
     // Styles
     const card = { background: 'var(--bg-card)', border: '1px solid var(--border)' }
@@ -455,41 +463,68 @@ export default function Dashboard() {
                         <div className="flex justify-between items-center px-2">
                             <h2 className="text-xl font-bold" style={{ color: 'var(--accent)' }}>Revision Manual</h2>
                             <div className="flex gap-2">
-                                {reviewQueue.length > 1 && <span className="px-3 py-1.5 text-xs font-bold bg-blue-900 text-blue-300 rounded-full">{reviewQueue.length} pendientes</span>}
-                                <button onClick={handleReject} disabled={submitting} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-red-600 text-white hover:bg-red-500 transition">Ignorar / Filtrar</button>
-                                <button onClick={handleApprove} disabled={submitting} className="px-6 py-1.5 rounded-lg font-bold text-xs shadow hover:opacity-90 transition" style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>Enviar Aplicacion</button>
+                                {!isAlreadyApplied && (
+                                    <>
+                                        {isPausedState ? (
+                                            <button onClick={pauseResumeBot} disabled={loading} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-yellow-600 text-white hover:bg-yellow-500 transition shadow">Reanudar Bot</button>
+                                        ) : (
+                                            <button onClick={pauseResumeBot} disabled={loading} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-yellow-600 text-white hover:bg-yellow-500 transition opacity-80 hover:opacity-100">Pausar</button>
+                                        )}
+                                        {reviewQueue.length > 1 && <span className="px-3 py-1.5 text-xs font-bold bg-blue-900 text-blue-300 rounded-full">{reviewQueue.length} pendientes</span>}
+                                        <button onClick={handleReject} disabled={submitting} className="px-4 py-1.5 rounded-lg font-bold text-xs bg-red-600 text-white hover:bg-red-500 transition">Ignorar / Filtrar</button>
+                                        <button onClick={handleApprove} disabled={submitting} className="px-6 py-1.5 rounded-lg font-bold text-xs shadow hover:opacity-90 transition" style={{ background: 'linear-gradient(to right, var(--accent), var(--accent-purple))', color: '#fff' }}>Enviar Aplicacion</button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
-                        {/* Job Snippet */}
-                        {currentReview.job && (
-                            <div className="rounded-xl p-4 cursor-pointer hover:bg-opacity-80 transition" style={card} onClick={() => setJobExpanded(!jobExpanded)}>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <h3 className="font-bold">{currentReview.job.title}</h3>
-                                        <p className="text-xs text-gray-400 mt-1">{currentReview.job.company} | Salario: {currentReview.job.quick_facts?.salary || 'N/A'}</p>
-                                    </div>
-                                    <span className="text-xs text-gray-500">{jobExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}</span>
-                                </div>
-                                {jobExpanded && (
-                                    <div className="mt-4 pt-4 border-t border-gray-700 text-sm whitespace-pre-wrap text-gray-300">
-                                        {typeof currentReview.job.ai_summary === 'object' ? currentReview.job.ai_summary.description : currentReview.job.ai_summary || currentReview.job.description}
+                        {isAlreadyApplied ? (
+                            <div className="rounded-xl p-6 text-center space-y-4 shadow-lg mx-4 mt-6" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid var(--accent)' }}>
+                                <div className="text-4xl animate-bounce mt-2">🔁</div>
+                                <h3 className="text-lg font-bold" style={{ color: 'var(--accent)' }}>Ya aplicaste a esta oferta anteriormente</h3>
+                                <button onClick={handleReject} disabled={submitting} className="mt-4 px-8 py-2 rounded-lg font-bold text-sm bg-blue-600 text-white hover:bg-blue-500 transition shadow">Continuar</button>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Job Snippet */}
+                                {currentReview.job && (
+                                    <div className="rounded-xl p-4 cursor-pointer hover:bg-opacity-80 transition" style={card} onClick={() => setJobExpanded(!jobExpanded)}>
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h3 className="font-bold">{currentReview.job.title}</h3>
+                                                <p className="text-xs text-gray-400 mt-1">{currentReview.job.company} | Salario: {currentReview.job.quick_facts?.salary || 'N/A'}</p>
+                                            </div>
+                                            <span className="text-xs text-gray-500">{jobExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}</span>
+                                        </div>
+                                        {jobExpanded && (
+                                            <div className="mt-4 pt-4 border-t border-gray-700 text-sm whitespace-pre-wrap text-gray-300">
+                                                {hasEmptyData ? (
+                                                    <div className="p-4 rounded-lg bg-orange-900/20 border border-orange-500/30 flex flex-col items-center justify-center text-center space-y-2 mt-2">
+                                                        <span className="text-2xl">⚠️</span>
+                                                        <span className="font-bold text-orange-400">No se pudo extraer información de esta oferta.</span>
+                                                        <span className="text-xs text-orange-300/80">Puedes revisar la oferta directamente en el BotStream o rechazarla para continuar con la siguiente.</span>
+                                                    </div>
+                                                ) : (
+                                                    typeof currentReview.job.ai_summary === 'object' ? currentReview.job.ai_summary.description : currentReview.job.ai_summary || currentReview.job.description
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
-                            </div>
-                        )}
 
-                        {/* Answers Form */}
-                        {currentReview.answers && (
-                            <div className="rounded-xl p-5 space-y-4" style={card}>
-                                <h3 className="font-bold mb-3 border-b border-gray-700 pb-2">Respuestas Sugeridas ({Object.keys(currentReview.answers).length})</h3>
-                                {Object.entries(currentReview.answers).map(([q, data], i) => (
-                                    <div key={i} className="mb-4">
-                                        <label className="block text-sm font-semibold mb-1 text-gray-300">{i + 1}. {q}</label>
-                                        <input type="text" value={editedAnswers[q] || ''} onChange={e => updateAnswer(q, e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+                                {/* Answers Form */}
+                                {currentReview.answers && (
+                                    <div className="rounded-xl p-5 space-y-4" style={card}>
+                                        <h3 className="font-bold mb-3 border-b border-gray-700 pb-2">Respuestas Sugeridas ({Object.keys(currentReview.answers).length})</h3>
+                                        {Object.entries(currentReview.answers).map(([q, data], i) => (
+                                            <div key={i} className="mb-4">
+                                                <label className="block text-sm font-semibold mb-1 text-gray-300">{i + 1}. {q}</label>
+                                                <input type="text" value={editedAnswers[q] || ''} onChange={e => updateAnswer(q, e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
