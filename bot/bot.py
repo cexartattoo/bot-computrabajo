@@ -126,7 +126,7 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
     from bot.config import (
         CT_EMAIL, CT_PASSWORD, SEARCH_KEYWORDS,
         SEARCH_LOCATIONS, MAX_APPLICATIONS_PER_RUN,
-        CV_PATH, get_cv_path
+        CV_PATH, get_cv_path, COOLDOWN_SECONDS
     )
     from bot.browser import (
         launch_browser, login, search_jobs_paginated,
@@ -332,8 +332,7 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                             rest_interval = random.randint(3, 5)
                         else:
                             # Use cooldown from config + small random variance
-                            base_cooldown = getattr(config, "COOLDOWN_SECONDS", 10)
-                            cooldown = base_cooldown + random.uniform(0, 2)
+                            cooldown = COOLDOWN_SECONDS + random.uniform(0, 2)
                             print(f"  [~] Pausa entre ofertas: {cooldown:.0f}s (cooldown API)")
                             await asyncio.sleep(cooldown)
 
@@ -363,8 +362,10 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
         print("      El bot se detendra limpiamente.")
     except Exception as e:
         # Suppress TargetClosedError on shutdown
-        if "TargetClosedError" in type(e).__name__ or "Target closed" in str(e):
-            print("\n  [!] Navegador cerrado. Finalizando limpiamente.")
+        err_name = type(e).__name__
+        err_str = str(e)
+        if "TargetClosedError" in err_name or "Target closed" in err_str or "target page" in err_str.lower():
+            pass  # Silently ignore -- browser was closed
         else:
             print(f"\n  [!] Error inesperado durante la ejecucion: {e}")
     finally:
@@ -378,6 +379,13 @@ async def run_bot(mode: str = "apply", specific_keyword: str = None,
                     pass
         except Exception:
             pass
+
+        # Close browser gracefully (suppress TargetClosedError)
+        try:
+            if 'browser' in dir() and browser:
+                await browser.close()
+        except Exception:
+            pass  # Browser already closed
 
         # Final summary -- ALWAYS generate report (even on Ctrl+C)
         print("\n" + "=" * 60)

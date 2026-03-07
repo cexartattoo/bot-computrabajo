@@ -556,19 +556,19 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
             // Fallback regex extraction from description text
             if (fullDescText) {
                 if (!quick_facts.salary) {
-                    const match = fullDescText.match(/(?:salario|sueldo):\s*([^\n\r]{5,60})/i);
+                    const match = fullDescText.match(/(?:salario|sueldo):\\s*([^\\n\\r]{5,60})/i);
                     if (match) quick_facts.salary = match[1].trim();
                 }
                 if (!quick_facts.contract) {
-                    const match = fullDescText.match(/(?:tipo de contrato|contrato):\s*([^\n\r]{5,60})/i);
+                    const match = fullDescText.match(/(?:tipo de contrato|contrato):\\s*([^\\n\\r]{5,60})/i);
                     if (match) quick_facts.contract = match[1].trim();
                 }
                 if (!quick_facts.schedule) {
-                    const match = fullDescText.match(/(?:horario|jornada):\s*([^\n\r]{5,60})/i);
+                    const match = fullDescText.match(/(?:horario|jornada):\\s*([^\\n\\r]{5,60})/i);
                     if (match) quick_facts.schedule = match[1].trim();
                 }
                 if (!quick_facts.location) {
-                    const match = fullDescText.match(/(?:lugar de trabajo|ubicación|ubicacion|dirección|direccion):\s*([^\n\r]{5,60})/i);
+                    const match = fullDescText.match(/(?:lugar de trabajo|ubicación|ubicacion|dirección|direccion):\\s*([^\\n\\r]{5,60})/i);
                     if (match) quick_facts.location = match[1].trim();
                 }
                 if (!quick_facts.modality) {
@@ -679,6 +679,16 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
                     if (['text', 'number', 'email', 'tel', 'password', 'url'].includes(type)) type = 'text';
                     if (!['text', 'radio', 'checkbox'].includes(type) && !el.placeholder) return;
                 }
+                
+                // Blocklist for search fields and non-question inputs
+                const nameAttr = (el.name || "").toLowerCase();
+                const idAttr = (el.id || "").toLowerCase();
+                if (
+                    nameAttr.includes("search") || idAttr.includes("search") ||
+                    nameAttr === "q" || nameAttr === "query" ||
+                    nameAttr === "prof-cat-search-input" ||
+                    nameAttr === "place-search-input"
+                ) return;
                 
                 if (type === 'radio' || type === 'checkbox') {
                     const name = el.name;

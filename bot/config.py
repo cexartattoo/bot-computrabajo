@@ -52,6 +52,7 @@ MAX_APPLICATIONS_PER_RUN = 10  # Límite de aplicaciones por sesión
 DELAY_MIN_SECONDS = 3          # Delay mínimo entre acciones (anti-bot)
 DELAY_MAX_SECONDS = 8          # Delay máximo
 HEADLESS = False               # True = sin ventana, False = ver el browser
+COOLDOWN_SECONDS = 10          # Pausa entre ofertas (anti-rate-limit)
 
 # ─── CV Profiles ─────────────────────────────────────
 _PROJECT_ROOT = Path(__file__).parent.parent

@@ -16,7 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -42,7 +43,6 @@ _CV_DATA = None
 
 # Try models from best to fastest/cheapest
 GEMINI_MODELS = [
-    "gemma-3-1b-it",
     "gemma-3-4b-it",
     "gemma-3-12b-it",
     "gemma-3-27b-it",
@@ -361,11 +361,11 @@ Se directo y conciso. No inventes datos que no esten en el texto. Solo JSON."""
     for model_name in GEMINI_MODELS:
         for idx, api_key in enumerate(GEMINI_API_KEYS):
             try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel(model_name=model_name)
-                response = model.generate_content(
-                    prompt, 
-                    generation_config=genai.GenerationConfig(temperature=0.2)
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt, 
+                    config=types.GenerateContentConfig(temperature=0.2)
                 )
                 if response and response.text:
                     raw = response.text.strip()
@@ -555,14 +555,14 @@ def _answer_with_gemini_batch(
     for model_name in GEMINI_MODELS:
         for idx, api_key in enumerate(GEMINI_API_KEYS):
             try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(
-                    prompt,
-                    generation_config={
-                        "temperature": 0.35,
-                        "max_output_tokens": 2000,
-                    },
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.35,
+                        max_output_tokens=2000,
+                    ),
                 )
                 text = response.text.strip()
                 if not text:
@@ -646,11 +646,11 @@ def _answer_with_gemini_batch(
                         print(f"  [AI] Rate limit ({model_name}, key #{idx+1}). Reintentando en {wait}s... (intento {attempt+1}/3)")
                         _time.sleep(wait)
                         try:
-                            genai.configure(api_key=api_key)
-                            model = genai.GenerativeModel(model_name)
-                            response = model.generate_content(
-                                prompt,
-                                generation_config={"temperature": 0.35, "max_output_tokens": 2000},
+                            client = genai.Client(api_key=api_key)
+                            response = client.models.generate_content(
+                                model=model_name,
+                                contents=prompt,
+                                config=config,
                             )
                             text = response.text.strip()
                             if text:
