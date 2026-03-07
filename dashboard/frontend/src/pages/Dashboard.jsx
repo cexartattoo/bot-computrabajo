@@ -653,7 +653,55 @@ export default function Dashboard() {
                                 })()}
 
                                 {/* Answers Form */}
-                                {currentReview.answers && (
+                                {currentReview.questions && currentReview.questions.length > 0 ? (
+                                    <div className="rounded-xl p-5 space-y-4" style={card}>
+                                        <h3 className="font-bold mb-3 border-b border-gray-700 pb-2">Respuestas Sugeridas ({currentReview.questions.length})</h3>
+                                        {currentReview.questions.map((qObj, i) => {
+                                            const qText = qObj.text;
+                                            const qType = qObj.type || 'text';
+                                            const qOptions = qObj.options || [];
+                                            const ansData = currentReview.answers[qText] || {};
+                                            const aiAns = editedAnswers[qText] !== undefined ? editedAnswers[qText] : ansData.answer || '';
+                                            const justification = ansData.justification;
+
+                                            return (
+                                                <div key={i} className="mb-4">
+                                                    <label className="block text-sm font-semibold mb-2 text-gray-300">
+                                                        {i + 1}. {qText} {qType === 'radio' && <span className="text-xs text-blue-400 ml-2">(Selección única)</span>}
+                                                    </label>
+
+                                                    {qType === 'radio' && qOptions.length > 0 ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            {qOptions.map((opt, optIdx) => (
+                                                                <label key={optIdx} className="flex items-start gap-2 cursor-pointer p-2 rounded hover:bg-white/5 border border-transparent hover:border-white/10 transition">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`q_${i}`}
+                                                                        value={opt}
+                                                                        checked={aiAns === opt}
+                                                                        onChange={e => updateAnswer(qText, e.target.value)}
+                                                                        className="mt-1"
+                                                                    />
+                                                                    <span className="text-sm text-gray-200">{opt}</span>
+                                                                </label>
+                                                            ))}
+                                                            {justification && (
+                                                                <div className="mt-2 p-3 rounded bg-blue-900/20 border border-blue-800/30">
+                                                                    <div className="text-xs text-blue-400 mb-1 font-semibold flex items-center gap-1">
+                                                                        <span>🤖</span> Razón de la IA:
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-400 italic leading-relaxed">{justification}</div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <input type="text" value={aiAns} onChange={e => updateAnswer(qText, e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : currentReview.answers && Object.keys(currentReview.answers).length > 0 ? (
                                     <div className="rounded-xl p-5 space-y-4" style={card}>
                                         <h3 className="font-bold mb-3 border-b border-gray-700 pb-2">Respuestas Sugeridas ({Object.keys(currentReview.answers).length})</h3>
                                         {Object.entries(currentReview.answers).map(([q, data], i) => (
@@ -663,7 +711,7 @@ export default function Dashboard() {
                                             </div>
                                         ))}
                                     </div>
-                                )}
+                                ) : null}
                             </>
                         )}
                     </div>

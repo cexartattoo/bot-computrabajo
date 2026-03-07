@@ -347,9 +347,21 @@ class BotManager:
                                     )
                             except Exception:
                                 pass
-                        continue
                     except Exception as e:
                         logger.warning(f"Failed to parse MISSING_DATA: {e}")
+
+                # Detect cooldown status and broadcast it to the frontend via WebSockets
+                if "Pausa entre ofertas:" in line:
+                    import re, json as _json
+                    match = re.search(r'Pausa entre ofertas:\s*(\d+)', line)
+                    if match:
+                        cooldown_seconds = int(match.group(1))
+                        cd_payload = {"type": "cooldown", "cooldown_seconds": cooldown_seconds}
+                        if self._loop and self._loop.is_running():
+                            asyncio.run_coroutine_threadsafe(
+                                self._broadcast(_json.dumps(cd_payload, ensure_ascii=False)),
+                                self._loop
+                            )
 
                 # Detect report generation and broadcast special [REPORT] message
                 if "Informe generado" in line or "[REPORT]" in line:

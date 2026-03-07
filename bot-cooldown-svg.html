@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bot Cooldown — Animated SVG</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a14;
+    display: flex;
+    gap: 60px;
+    padding: 60px 40px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    color: #aac;
+  }
+
+  /* ─── Cooldown: robot respira lento, teal/cyan ─── */
+  .bot-cooldown {
+    animation: cooldown-breathe 4s ease-in-out infinite;
+  }
+  @keyframes cooldown-breathe {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50%      { transform: scale(1.015) translateY(-2px); }
+  }
+
+  /* ─── Arco de progreso girando hacia atrás ─── */
+  .cd-ring-spin {
+    animation: cd-ring 1s linear infinite;
+    transform-origin: 80px 80px;
+  }
+  @keyframes cd-ring {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(-360deg); }
+  }
+
+  /* ─── Tick cada segundo ─── */
+  .cd-tick {
+    animation: cd-tick-pulse 1s steps(1) infinite;
+  }
+  @keyframes cd-tick-pulse {
+    0%, 49% { opacity: 1; }
+    50%, 99% { opacity: 0.3; }
+  }
+
+  /* ─── Dígitos contando atrás ─── */
+  .digit-scroll {
+    animation: digit-count 11s steps(11, end) forwards;
+  }
+
+  /* ─── Glow en antena: parpadeo lento ─── */
+  .antenna-glow {
+    animation: ant-blink 2s ease-in-out infinite;
+  }
+  @keyframes ant-blink {
+    0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px #00eeff); }
+    50%      { opacity: 0.3; filter: none; }
+  }
+
+  /* ─── Ojo derecho: reloj girando ─── */
+  .eye-clock {
+    animation: clock-tick 1s steps(12) infinite;
+    transform-origin: 94px 56px;
+  }
+  @keyframes clock-tick {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* ─── Pulso del ring exterior ─── */
+  .outer-pulse {
+    animation: outer-ring-pulse 2s ease-in-out infinite;
+  }
+  @keyframes outer-ring-pulse {
+    0%, 100% { opacity: 0.2; stroke-width: 1.5; }
+    50%      { opacity: 0.5; stroke-width: 2.5; }
+  }
+
+  /* ─── Barras de "descanso" en pecho ─── */
+  .rest-bar-1 { animation: rest-bar 2s ease-in-out infinite 0s; }
+  .rest-bar-2 { animation: rest-bar 2s ease-in-out infinite 0.4s; }
+  .rest-bar-3 { animation: rest-bar 2s ease-in-out infinite 0.8s; }
+  .rest-bar-4 { animation: rest-bar 2s ease-in-out infinite 1.2s; }
+  @keyframes rest-bar {
+    0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+    50%      { transform: scaleY(1); opacity: 0.9; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     BOT COOLDOWN / PAUSA DE DESCANSO
+     Nota: el atributo data-seconds puede
+     setearse dinámicamente desde JS para
+     controlar la cuenta regresiva real.
+════════════════════════════════════════ -->
+<div class="card">
+  <svg class="bot-cooldown" id="cooldown-svg"
+       width="160" height="160" viewBox="0 0 160 160"
+       fill="none" xmlns="http://www.w3.org/2000/svg"
+       data-seconds="11">
+
+    <defs>
+      <radialGradient id="bg_cd" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#0a2025"/>
+        <stop offset="100%" stop-color="#050d10"/>
+      </radialGradient>
+      <radialGradient id="eye_cd_l" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#44ffee"/>
+        <stop offset="100%" stop-color="#007788"/>
+      </radialGradient>
+      <radialGradient id="eye_cd_r" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#22ddcc"/>
+        <stop offset="100%" stop-color="#006070"/>
+      </radialGradient>
+      <filter id="glow_teal" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow_teal_soft" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="1.8" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <!-- Gradiente del arco de cooldown -->
+      <linearGradient id="arc_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#00eeff"/>
+        <stop offset="100%" stop-color="#007799" stop-opacity="0.3"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Fondo -->
+    <circle cx="80" cy="80" r="75" fill="url(#bg_cd)" stroke="#0a3040" stroke-width="1.5"/>
+
+    <!-- Anillo exterior pulsante -->
+    <circle class="outer-pulse" cx="80" cy="80" r="72" fill="none"
+            stroke="#00ccdd" stroke-width="1.5" stroke-dasharray="10 16"
+            stroke-linecap="round"/>
+
+    <!-- Arco de countdown (SVG animado via JS) -->
+    <!-- Circunferencia de r=68: ~427px -->
+    <circle id="cd-arc" cx="80" cy="80" r="68" fill="none"
+            stroke="url(#arc_grad)" stroke-width="4"
+            stroke-dasharray="427 427"
+            stroke-dashoffset="0"
+            stroke-linecap="round"
+            transform="rotate(-90 80 80)"
+            opacity="0.85"/>
+
+    <!-- Marcas de segundos (12 ticks como reloj) -->
+    <g opacity="0.3">
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(30 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(60 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(90 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(120 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(150 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(180 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(210 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(240 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(270 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(300 80 80)"/>
+      <line x1="80" y1="10" x2="80" y2="16" stroke="#00ccdd" stroke-width="1.5" stroke-linecap="round" transform="rotate(330 80 80)"/>
+    </g>
+
+    <!-- Punto girando en el arco -->
+    <circle cx="80" cy="12" r="3.5" fill="#00eeff" filter="url(#glow_teal)">
+      <animateTransform attributeName="transform" type="rotate"
+                        from="0 80 80" to="-360 80 80"
+                        id="cd-dot-anim"
+                        dur="11s" repeatCount="1" fill="freeze"/>
+      <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Cuerpo robot -->
+    <rect x="44" y="68" width="72" height="52" rx="10" fill="#091820" stroke="#0e4055" stroke-width="1.5"/>
+    <!-- Cabeza -->
+    <rect x="52" y="38" width="56" height="38" rx="9" fill="#091820" stroke="#0e4055" stroke-width="1.5"/>
+
+    <!-- Antena con glow parpadeante -->
+    <line x1="80" y1="38" x2="80" y2="26" stroke="#00ccdd" stroke-width="2" stroke-linecap="round"/>
+    <circle class="antenna-glow" cx="80" cy="23" r="4.5"
+            fill="#006677" stroke="#00eeff" stroke-width="1"
+            filter="url(#glow_teal)"/>
+
+    <!-- Ojo izquierdo: tranquilo, semicerrado (descanso) -->
+    <circle cx="66" cy="56" r="7.5" fill="url(#eye_cd_l)" filter="url(#glow_teal_soft)" opacity="0.7"/>
+    <!-- Párpado medio cerrado -->
+    <rect x="59" y="52" width="14" height="5" rx="2.5" fill="#091820" opacity="0.6"/>
+
+    <!-- Ojo derecho: tiene un reloj girando adentro -->
+    <circle cx="94" cy="56" r="7.5" fill="url(#eye_cd_r)" filter="url(#glow_teal_soft)" opacity="0.9"/>
+    <!-- Aguja del reloj -->
+    <g class="eye-clock">
+      <line x1="94" y1="56" x2="94" y2="51" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>
+      <line x1="94" y1="56" x2="97.5" y2="57.5" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
+    </g>
+    <!-- Centro reloj -->
+    <circle cx="94" cy="56" r="1.5" fill="#fff" opacity="0.9"/>
+
+    <!-- Boca relajada -->
+    <path d="M 69 72 Q 80 76 91 72" stroke="#0a8090" stroke-width="2"
+          fill="none" stroke-linecap="round"/>
+
+    <!-- Panel pecho -->
+    <rect x="54" y="82" width="52" height="26" rx="5" fill="#050d12" stroke="#0a3040" stroke-width="1"/>
+
+    <!-- Número de segundos grande en el pecho -->
+    <text id="cd-seconds-display" x="80" y="101"
+          text-anchor="middle" fill="#00eeff"
+          font-size="18" font-family="monospace" font-weight="bold"
+          filter="url(#glow_teal_soft)">11</text>
+
+    <!-- Etiqueta "s" pequeña -->
+    <text x="93" y="101" fill="#007799" font-size="9"
+          font-family="monospace" font-weight="bold">s</text>
+
+    <!-- Brazos relajados, ligeramente caídos -->
+    <rect x="26" y="78" width="18" height="9" rx="4.5"
+          fill="#091820" stroke="#0e4055" stroke-width="1.5"
+          transform="rotate(8 35 82)"/>
+    <rect x="116" y="78" width="18" height="9" rx="4.5"
+          fill="#091820" stroke="#0e4055" stroke-width="1.5"
+          transform="rotate(-8 125 82)"/>
+
+    <!-- Barras de "descanso/idle" debajo del robot -->
+    <g transform="translate(55, 126)">
+      <rect class="rest-bar-1" x="0"  y="0" width="6" height="10" rx="3"
+            fill="#00ccdd" opacity="0.6" style="transform-origin: 3px 10px"/>
+      <rect class="rest-bar-2" x="10" y="0" width="6" height="10" rx="3"
+            fill="#00ccdd" opacity="0.6" style="transform-origin: 13px 10px"/>
+      <rect class="rest-bar-3" x="20" y="0" width="6" height="10" rx="3"
+            fill="#00ccdd" opacity="0.6" style="transform-origin: 23px 10px"/>
+      <rect class="rest-bar-4" x="30" y="0" width="6" height="10" rx="3"
+            fill="#00ccdd" opacity="0.6" style="transform-origin: 33px 10px"/>
+    </g>
+
+    <!-- Label COOLDOWN -->
+    <text x="80" y="148" text-anchor="middle" fill="#0a4a55"
+          font-size="8.5" font-family="monospace" font-weight="bold"
+          letter-spacing="1.5">COOLDOWN</text>
+  </svg>
+  <span class="label">Pausa entre ofertas</span>
+</div>
+
+<script>
+/**
+ * Cooldown SVG Controller
+ * Uso: setCooldown(segundos) — llamar desde el bot cuando detecte pausa
+ * Ej: setCooldown(11)
+ */
+function setCooldown(totalSeconds) {
+  const svg = document.getElementById('cooldown-svg');
+  svg.setAttribute('data-seconds', totalSeconds);
+
+  const arc = document.getElementById('cd-arc');
+  const display = document.getElementById('cd-seconds-display');
+  const dotAnim = svg.querySelector('animateTransform[id="cd-dot-anim"]');
+  const circumference = 2 * Math.PI * 68; // r=68
+
+  let remaining = totalSeconds;
+
+  // Actualizar duración de la animación del punto
+  if (dotAnim) {
+    dotAnim.setAttribute('dur', totalSeconds + 's');
+    dotAnim.beginElement();
+  }
+
+  // Actualizar arco inmediatamente
+  arc.style.strokeDashoffset = '0';
+
+  const interval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      remaining = 0;
+      clearInterval(interval);
+      display.textContent = '0';
+      arc.style.strokeDashoffset = circumference;
+      return;
+    }
+
+    // Actualizar número
+    display.textContent = remaining;
+
+    // Actualizar arco (progreso consumido)
+    const consumed = (totalSeconds - remaining) / totalSeconds;
+    arc.style.strokeDashoffset = consumed * circumference;
+
+  }, 1000);
+}
+
+// Demo: inicia con 11 segundos
+setCooldown(11);
+
+// Para reiniciar o usar desde fuera:
+// window.setCooldown = setCooldown;
+window.setCooldown = setCooldown;
+</script>
+</body>
+</html>

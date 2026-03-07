@@ -955,12 +955,33 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
                     print(f"  [WARN] Sin respuesta del usuario. Continuando sin dato para: '{question_text}'")
                     tipo = "dato_faltante"
 
+            # If the original question is a radio or select, try to match the AI answer to an exact option
+            orig_options = q.get("options", [])
+            orig_type = q.get("type", "text")
+            
+            justification = ""
+            if orig_type in ("radio", "select") and orig_options and ai_answer:
+                ai_upper = str(ai_answer).upper()
+                best_match = None
+                
+                # Try substring match both ways for the option text
+                for opt in orig_options:
+                    opt_upper = str(opt).upper()
+                    if opt_upper in ai_upper or ai_upper in opt_upper:
+                        if not best_match or len(opt) > len(best_match):
+                            best_match = opt
+                
+                if best_match:
+                    justification = str(ai_answer)
+                    ai_answer = best_match
+
             # Store enriched answer
             answers[question_text] = {
                 "answer": ai_answer,
                 "model": model_used,
                 "tipo": tipo,
                 "confianza": confianza,
+                "justification": justification
             }
             conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"}.get(confianza, "[?]")
             print(f"    - {conf_icon} '{question_text[:60]}...' [{model_used}] ({tipo})")

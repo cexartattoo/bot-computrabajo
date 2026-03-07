@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useBot } from '../context/BotContext'
+import BotCooldownSVG from './BotCooldownSVG'
 
 const API = '/api'
 
@@ -633,7 +634,7 @@ export default function BotStream() {
     const resizeStartRef = useRef({ x: 0, y: 0, w: 0, h: 0 })
 
     const botStatus = status?.status || 'idle'
-    const isRunning = botStatus === 'running' || botStatus === 'paused' || botStatus === 'paused_user'
+    const isRunning = botStatus === 'running' || botStatus === 'paused' || botStatus === 'paused_user' || botStatus === 'cooldown'
     const isPaused = botStatus === 'paused' || botStatus === 'paused_user'
     const prevRunningRef = useRef(false)
 
@@ -830,6 +831,13 @@ export default function BotStream() {
                                         <span style={{ color: '#ffaa00', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px' }}>PAUSADO</span>
                                     </>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Cooldown Overlay */}
+                        {botStatus === 'cooldown' && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+                                <BotCooldownSVG totalSeconds={status?.cooldown_seconds || 10} />
                             </div>
                         )}
                     </>

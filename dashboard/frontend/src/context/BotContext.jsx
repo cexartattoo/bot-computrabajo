@@ -44,6 +44,10 @@ export function BotProvider({ children }) {
                 if (data.startsWith('{') || data.startsWith('[')) {
                     try {
                         const parsed = JSON.parse(data)
+                        if (parsed.type === 'cooldown') {
+                            setStatus(prev => ({ ...prev, status: 'cooldown', cooldown_seconds: parsed.cooldown_seconds }))
+                            return
+                        }
                         if (parsed.type === 'review_request' || parsed.type === 'missing_data' || parsed.type === 'questions_detected') {
                             setReviewQueue(prev => [...prev, parsed])
                             if (parsed.type === 'questions_detected') setAiProcessing(true)
