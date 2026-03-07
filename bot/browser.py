@@ -975,16 +975,17 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
                     justification = str(ai_answer)
                     ai_answer = best_match
 
-            # Store enriched answer
-            answers[question_text] = {
+            # Store enriched answer using the RAW text without options string appended
+            raw_q_text = q['text']
+            answers[raw_q_text] = {
                 "answer": ai_answer,
                 "model": model_used,
                 "tipo": tipo,
                 "confianza": confianza,
                 "justification": justification
             }
-            conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"}.get(confianza, "[?]")
-            print(f"    - {conf_icon} '{question_text[:60]}...' [{model_used}] ({tipo})")
+            conf_icon = {"alta": "[OK]", "media": "[~]", "baja": "[!]"} .get(confianza, "[?]")
+            print(f"    - {conf_icon} '{raw_q_text[:60]}...' [{model_used}] ({tipo})")
 
         # ── In dry-run-llm, stop here -- don't upload CV or submit ──
         # Caso B: sin cuestionario -> proceso completo, se registra como 'applied'

@@ -114,8 +114,12 @@ async def _screen_stream_loop(page):
             if "target closed" in error_str or "session closed" in error_str or "pipe" in error_str:
                 cdp_session = None
             # If the page/browser is completely gone, stop the loop
-            if page.is_closed():
+            try:
+                if page.is_closed():
+                    break
+            except Exception:
                 break
+                
             await asyncio.sleep(1.0)
 
 
