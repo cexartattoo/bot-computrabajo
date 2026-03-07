@@ -389,7 +389,11 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
     #   - Requisitos: ul.disc li dentro de div[div-link="oferta"]
     #   - Keywords: p.fc_aux.fs13 con "Palabras clave" dentro de div[div-link="oferta"]
     #   - Fecha: p.fc_aux.fs13 con "Hace" dentro de div[div-link="oferta"]
-    job_details = {}
+    job_details = {"text": "", "quick_facts": {}, "sections": {}}
+    extraction_method = "fallido"
+    desc_text = ""
+    
+    # === INTENTO 1: Script de extracción principal (JS inyectado) ===
     try:
         job_details = await page.evaluate('''() => {
             const quick_facts = {};
@@ -486,17 +490,17 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
                 }
             }
 
-            // 7. Descripcion del cargo:
-            //    Primero buscar p.mbB largo dentro de div[div-link="oferta"]
-            //    (es el parrafo principal de la oferta, ej: linea 539-572 del HTML real)
-            if (offerBlock) {
-                const descParas = Array.from(offerBlock.querySelectorAll('p.mbB'));
-                // Tomar el p.mbB mas largo como descripcion
-                let longestText = '';
-                for (const p of descParas) {
-                    const text = p.innerText.trim();
-                    if (text.length > longestText.length) longestText = text;
+            // 7. Intentar la estrategia super robusta para la descripcion (p.mbB general)
+            //    Computrabajo suele poner su texto grande en un <p class="mbB">
+            const fallbacksDesc = Array.from(offerBlock ? offerBlock.querySelectorAll('p.mbB') : document.querySelectorAll('p.mbB'));
+            let fallbackText = "";
+            if (fallbacksDesc.length > 0) {
+                let longestText = "";
+                for (const elem of fallbacksDesc) {
+                    const txt = elem.innerText.trim();
+                    if (txt.length > longestText.length) longestText = txt;
                 }
+                fallbackText = longestText;
                 if (longestText.length > 50) {
                     sections.description = longestText.substring(0, 8000);
                 }
@@ -586,17 +590,90 @@ async def apply_to_job(page: Page, job: dict, mode: str = "apply"):
             }
 
             return {
-                text: fallbackText.substring(0, 15000),
+                text: sections.description || fallbackText.substring(0, 15000),
                 quick_facts: quick_facts,
                 sections: sections
             };
         }''')
+        desc_text = job_details.get("text", "")
+        if desc_text and len(desc_text.strip()) > 10:
+            extraction_method = "script_principal"
     except Exception as e:
-        print(f"  [Browser] Error inyectando script de extraccion: {e}")
+        print(f"  [Browser] Error inyección JS principal: {e}")
         job_details = {"text": "", "quick_facts": {}, "sections": {}}
 
-    desc_text = job_details.get("text", "")
-    job["description"] = desc_text
+    # === INTENTO 2: Extracción por selectores directos de Playwright ===
+    if extraction_method == "fallido":
+        try:
+            print("  [Browser] Intentando extraccion por selectores directos de Playwright...")
+            playwright_qf = {}
+            
+            # Title
+            title_loc = page.locator("h1, [data-qa='job-title'], .title-job").first
+            if await title_loc.count() > 0:
+                playwright_qf["title"] = await title_loc.inner_text()
+            
+            # Company
+            comp_loc = page.locator("[data-qa='company-name'], .company, main.detail_fs p.fs16").first
+            if await comp_loc.count() > 0:
+                comp_text = await comp_loc.inner_text()
+                if " - " in comp_text:
+                    parts = comp_text.split(" - ")
+                    playwright_qf["company"] = parts[0].strip()
+                    playwright_qf["location"] = parts[1].strip()
+                else:
+                    playwright_qf["company"] = comp_text.strip()
+            
+            # Tags (Salary, Contract, Modality)
+            tags_loc = page.locator(".tag.base, span.tag")
+            tags_count = await tags_loc.count()
+            for i in range(tags_count):
+                tag_text = await tags_loc.nth(i).inner_text()
+                tag_lower = tag_text.lower()
+                if "$" in tag_text or "salario" in tag_lower or "convenir" in tag_lower:
+                    playwright_qf["salary"] = tag_text
+                elif "contrato" in tag_lower:
+                    playwright_qf["contract"] = tag_text
+                elif "remoto" in tag_lower or "presencial" in tag_lower or "híbrido" in tag_lower or "hibrido" in tag_lower:
+                    playwright_qf["modality"] = tag_text
+
+            # Description
+            desc_loc = page.locator("p.mbB, #offer_description, .offer-description, [data-qa='job-description'], div[div-link='oferta']").first
+            if await desc_loc.count() > 0:
+                desc_text = await desc_loc.inner_text()
+                desc_text = desc_text[:15000]
+
+            job_details = {
+                "text": desc_text,
+                "quick_facts": playwright_qf,
+                "sections": {"description": desc_text}
+            }
+            if desc_text and len(desc_text.strip()) > 10:
+                extraction_method = "selectores"
+        except Exception as e:
+            print(f"  [Browser] Error en extraccion por selectores: {e}")
+
+    # === INTENTO 3: Extracción mínima desde HTML crudo ===
+    if extraction_method == "fallido":
+        try:
+            print(f"  [WARN] Usando extracción por texto crudo para: {job.get('title', 'Oferta')}...")
+            raw_text = await page.evaluate("document.body.innerText")
+            if raw_text:
+                desc_text = raw_text.strip()[:15000]
+                job_details = {
+                    "text": desc_text,
+                    "quick_facts": {},
+                    "sections": {"description": desc_text} # Send raw text as description so AI can read it
+                }
+                extraction_method = "texto_crudo"
+        except Exception as e:
+            print(f"  [Browser] Error en extracción de texto crudo: {e}")
+
+    print(f"  [Extraccion] Método: {extraction_method}")
+    if extraction_method == "fallido":
+        print("  [ERROR] Extracción fallida tras 3 intentos. La oferta se mostrará vacía en la revisión manual.")
+
+    job["description"] = job_details.get("text", "")
     job["quick_facts"] = job_details.get("quick_facts", {})
     job["sections"] = job_details.get("sections", {})
 

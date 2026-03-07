@@ -320,7 +320,8 @@ def summarize_job(job_title: str, company: str, job_description: str, quick_fact
     Retorna un dict con campos clave de la oferta interpretados por el modelo.
     Si el parsing falla, retorna dict con clave 'description' como fallback.
     """
-    if not job_description or not GEMINI_AVAILABLE or not GEMINI_API_KEYS:
+    # Bail if no AI available or no content to summarize
+    if (not job_description and not quick_facts) or not GEMINI_AVAILABLE or not GEMINI_API_KEYS:
         return {"description": "Resumen IA no disponible."}
         
     quick_facts_text = ""
