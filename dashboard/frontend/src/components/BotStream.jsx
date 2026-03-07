@@ -9,114 +9,246 @@ const API = '/api'
 
 function BotOfflineSVG({ error = false }) {
     return (
-        <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg className="bot-offline" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <style>{`
+                .bot-offline { animation: static-flicker 8s infinite; }
+                @keyframes static-flicker {
+                    0%, 95%, 100%  { opacity: 1; filter: none; }
+                    96%            { opacity: 0.7; filter: brightness(0.6) contrast(1.4); }
+                    97%            { opacity: 1;   filter: none; }
+                    98%            { opacity: 0.5; filter: brightness(0.4); }
+                    99%            { opacity: 1;   filter: none; }
+                }
+                .eye-dead { animation: dead-eye 5s ease-in-out infinite; }
+                @keyframes dead-eye {
+                    0%, 80%, 100% { opacity: 0.35; }
+                    40%           { opacity: 0.7; filter: drop-shadow(0 0 2px #555); }
+                }
+            `}</style>
             <defs>
-                <radialGradient id="glow_off" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#2a2a3e" />
-                    <stop offset="100%" stopColor="#111122" />
+                <radialGradient id="bg_off" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#1e1e30" />
+                    <stop offset="100%" stopColor="#0d0d18" />
                 </radialGradient>
             </defs>
-            <circle cx="80" cy="80" r="72" fill="url(#glow_off)" stroke="#2a2a4a" strokeWidth="1.5" />
-            <rect x="44" y="68" width="72" height="52" rx="10" fill="#1e1e32" stroke="#333355" strokeWidth="1.5" />
-            <rect x="52" y="38" width="56" height="38" rx="9" fill="#1e1e32" stroke="#333355" strokeWidth="1.5" />
-            <line x1="80" y1="38" x2="80" y2="26" stroke="#333355" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="80" cy="23" r="4" fill="#2a2a3e" stroke="#333355" strokeWidth="1.5" />
-            <line x1="62" y1="52" x2="70" y2="60" stroke="#444466" strokeWidth="2.5" strokeLinecap="round" />
-            <line x1="70" y1="52" x2="62" y2="60" stroke="#444466" strokeWidth="2.5" strokeLinecap="round" />
-            <line x1="90" y1="52" x2="98" y2="60" stroke="#444466" strokeWidth="2.5" strokeLinecap="round" />
-            <line x1="98" y1="52" x2="90" y2="60" stroke="#444466" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M 66 72 Q 80 68 94 72" stroke="#444466" strokeWidth="2" fill="none" strokeLinecap="round" />
-            <rect x="54" y="82" width="52" height="26" rx="5" fill="#161628" stroke="#2a2a44" strokeWidth="1" />
-            <circle cx="66" cy="95" r="5" fill="#1a1a2e" stroke="#333" strokeWidth="1" />
-            <circle cx="80" cy="95" r="5" fill="#1a1a2e" stroke="#333" strokeWidth="1" />
-            <circle cx="94" cy="95" r="5" fill="#1a1a2e" stroke="#333" strokeWidth="1" />
-            <rect x="26" y="72" width="18" height="10" rx="5" fill="#1e1e32" stroke="#333355" strokeWidth="1.5" />
-            <rect x="116" y="72" width="18" height="10" rx="5" fill="#1e1e32" stroke="#333355" strokeWidth="1.5" />
-            <text x="80" y="138" textAnchor="middle" fill="#333355" fontSize="11" fontFamily="monospace" fontWeight="bold">
+            <circle cx="80" cy="80" r="75" fill="url(#bg_off)" stroke="#22223a" strokeWidth="1.5" />
+            <circle cx="80" cy="80" r="71" fill="none" stroke="#2a2a44" strokeWidth="0.5" strokeDasharray="4 8" opacity="0.4" />
+
+            <rect x="44" y="68" width="72" height="52" rx="10" fill="#181828" stroke="#2a2a42" strokeWidth="1.5" />
+            <rect x="52" y="38" width="56" height="38" rx="9" fill="#181828" stroke="#2a2a42" strokeWidth="1.5" />
+
+            <line x1="80" y1="38" x2="80" y2="26" stroke="#2a2a42" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="80" cy="23" r="4" fill="#1a1a2e" stroke="#2a2a42" strokeWidth="1.5" />
+
+            <g className="eye-dead">
+                <line x1="62" y1="52" x2="70" y2="60" stroke="#3a3a5a" strokeWidth="2.5" strokeLinecap="round" />
+                <line x1="70" y1="52" x2="62" y2="60" stroke="#3a3a5a" strokeWidth="2.5" strokeLinecap="round" />
+                <line x1="90" y1="52" x2="98" y2="60" stroke="#3a3a5a" strokeWidth="2.5" strokeLinecap="round" />
+                <line x1="98" y1="52" x2="90" y2="60" stroke="#3a3a5a" strokeWidth="2.5" strokeLinecap="round" />
+            </g>
+
+            <path d="M 67 73 Q 80 69 93 73" stroke="#2a2a44" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+
+            <rect x="54" y="82" width="52" height="26" rx="5" fill="#111120" stroke="#202038" strokeWidth="1" />
+
+            <circle cx="66" cy="95" r="5" fill="#0e0e1e" stroke="#222" strokeWidth="1" />
+            <circle cx="80" cy="95" r="5" fill="#0e0e1e" stroke="#222" strokeWidth="1" />
+            <circle cx="94" cy="95" r="5" fill="#0e0e1e" stroke="#222" strokeWidth="1" />
+
+            <rect x="55" y="90" width="50" height="1" fill="#4040ff" opacity="0.06">
+                <animate attributeName="y" values="83;107;83" dur="3s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0;0.12;0" dur="3s" repeatCount="indefinite" />
+            </rect>
+
+            <rect x="26" y="74" width="18" height="10" rx="5" fill="#181828" stroke="#2a2a42" strokeWidth="1.5" transform="rotate(20 35 79)" />
+            <rect x="116" y="74" width="18" height="10" rx="5" fill="#181828" stroke="#2a2a42" strokeWidth="1.5" transform="rotate(-20 125 79)" />
+
+            <text x="80" y="138" textAnchor="middle" fill="#2a2a44" fontSize="10" fontFamily="monospace" fontWeight="bold" letterSpacing="2">
                 {error ? "ERROR - ver terminal" : "OFFLINE"}
             </text>
+            {!error && (
+                <rect x="115" y="129" width="6" height="8" fill="#2a2a44">
+                    <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite" />
+                </rect>
+            )}
         </svg>
     )
 }
 
 function BotLoadingSVG() {
     return (
-        <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg className="bot-loading" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <style>{`
+                .bot-loading { animation: bob 2s ease-in-out infinite; }
+                @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+                .orbit-glow { animation: orbit-spin 2s linear infinite; transform-origin: 80px 80px; }
+                .orbit-glow-2 { animation: orbit-spin 2s linear infinite reverse; transform-origin: 80px 80px; animation-delay: -0.75s; }
+                @keyframes orbit-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            `}</style>
             <defs>
-                <radialGradient id="glow_load" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#1a2a4a" />
-                    <stop offset="100%" stopColor="#0d1520" />
+                <radialGradient id="bg_load" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#0e1e40" />
+                    <stop offset="100%" stopColor="#070e1e" />
                 </radialGradient>
-                <filter id="blur_load"><feGaussianBlur stdDeviation="3" /></filter>
+                <radialGradient id="eye_glow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#60aaff" />
+                    <stop offset="100%" stopColor="#1040cc" />
+                </radialGradient>
+                <filter id="glow_blue" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
             </defs>
-            <circle cx="80" cy="80" r="68" fill="none" stroke="#2060ff" strokeWidth="1" opacity="0.3" filter="url(#blur_load)" />
-            <circle cx="80" cy="80" r="72" fill="url(#glow_load)" stroke="#1a3060" strokeWidth="1.5" />
-            <circle cx="80" cy="80" r="70" fill="none" stroke="#0040cc" strokeWidth="3" strokeDasharray="180 260" strokeLinecap="round" opacity="0.6">
-                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="1.5s" repeatCount="indefinite" />
+            <circle cx="80" cy="80" r="75" fill="url(#bg_load)" stroke="#0f2550" strokeWidth="1.5" />
+            <g className="orbit-glow">
+                <circle cx="80" cy="80" r="71" fill="none" stroke="#1848cc" strokeWidth="2.5" strokeDasharray="90 354" strokeLinecap="round" opacity="0.7" />
+            </g>
+            <g className="orbit-glow-2">
+                <circle cx="80" cy="80" r="71" fill="none" stroke="#4488ff" strokeWidth="1.5" strokeDasharray="40 404" strokeLinecap="round" opacity="0.9" />
+            </g>
+            <circle cx="80" cy="80" r="64" fill="none" stroke="#0a2060" strokeWidth="1" strokeDasharray="6 10" opacity="0.5">
+                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="-360 80 80" dur="8s" repeatCount="indefinite" />
             </circle>
-            <circle cx="80" cy="80" r="70" fill="none" stroke="#4488ff" strokeWidth="2" strokeDasharray="60 380" strokeLinecap="round" opacity="0.9">
-                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="1.5s" repeatCount="indefinite" />
-            </circle>
-            <rect x="44" y="68" width="72" height="52" rx="10" fill="#162040" stroke="#2050aa" strokeWidth="1.5" />
-            <rect x="52" y="38" width="56" height="38" rx="9" fill="#162040" stroke="#2050aa" strokeWidth="1.5" />
+            <rect x="44" y="68" width="72" height="52" rx="10" fill="#0e1e3a" stroke="#1a4088" strokeWidth="1.5" />
+            <rect x="52" y="38" width="56" height="38" rx="9" fill="#0e1e3a" stroke="#1a4088" strokeWidth="1.5" />
+
             <line x1="80" y1="38" x2="80" y2="26" stroke="#4488ff" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="80" cy="23" r="4" fill="#2060cc">
-                <animate attributeName="opacity" values="1;0.2;1" dur="1s" repeatCount="indefinite" />
+            <circle cx="80" cy="23" r="4" fill="#1050cc" filter="url(#glow_blue)">
+                <animate attributeName="r" values="4;5.5;4" dur="1s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
             </circle>
-            <circle cx="66" cy="56" r="6" fill="#1040aa">
-                <animate attributeName="fill" values="#1040aa;#4488ff;#1040aa" dur="1s" repeatCount="indefinite" />
+
+            <circle cx="66" cy="56" r="7" fill="url(#eye_glow)" filter="url(#glow_blue)">
+                <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.2s" repeatCount="indefinite" />
             </circle>
-            <circle cx="94" cy="56" r="6" fill="#1040aa">
-                <animate attributeName="fill" values="#1040aa;#4488ff;#1040aa" dur="1s" begin="0.5s" repeatCount="indefinite" />
+            <circle cx="94" cy="56" r="7" fill="url(#eye_glow)" filter="url(#glow_blue)">
+                <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.2s" begin="0.6s" repeatCount="indefinite" />
             </circle>
-            <rect x="68" y="70" width="24" height="3" rx="1.5" fill="#2050aa" />
-            <rect x="54" y="82" width="52" height="26" rx="5" fill="#0e1830" stroke="#1a3a7a" strokeWidth="1" />
-            <rect x="58" y="91" width="44" height="5" rx="2.5" fill="#0a1020" />
-            <rect x="58" y="91" width="10" height="5" rx="2.5" fill="#2060ff">
-                <animate attributeName="width" values="0;44;0" dur="1.5s" repeatCount="indefinite" />
+
+            <circle cx="66" cy="56" r="3" fill="#88bbff" opacity="0.6">
+                <animate attributeName="cx" values="64;68;64" dur="2s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="94" cy="56" r="3" fill="#88bbff" opacity="0.6">
+                <animate attributeName="cx" values="92;96;92" dur="2s" repeatCount="indefinite" />
+            </circle>
+
+            <rect x="68" y="70" width="24" height="3" rx="1.5" fill="#1a4088" />
+            <rect x="68" y="70" width="8" height="3" rx="1.5" fill="#4488ff" opacity="0.8">
+                <animate attributeName="width" values="0;24;0" dur="1.6s" repeatCount="indefinite" />
             </rect>
-            <circle cx="66" cy="103" r="3" fill="#2040aa">
-                <animate attributeName="opacity" values="1;0.1;1" dur="0.8s" begin="0s" repeatCount="indefinite" />
+
+            <rect x="54" y="82" width="52" height="26" rx="5" fill="#07101e" stroke="#0f2a5a" strokeWidth="1" />
+            <rect x="55" y="83" width="50" height="1.5" fill="#3366ff" opacity="0.4" rx="0.5">
+                <animate attributeName="y" values="83;106;83" dur="1.4s" repeatCount="indefinite" />
+            </rect>
+
+            <rect x="58" y="90" width="44" height="4" rx="2" fill="#050f1e" />
+            <rect x="58" y="90" width="2" height="4" rx="2" fill="#4488ff" filter="url(#glow_blue)">
+                <animate attributeName="width" values="2;44;2" dur="2s" repeatCount="indefinite" />
+            </rect>
+
+            <circle cx="66" cy="102" r="3.5" fill="#1030aa">
+                <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0s" repeatCount="indefinite" />
+                <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0s" repeatCount="indefinite" />
             </circle>
-            <circle cx="80" cy="103" r="3" fill="#2040aa">
-                <animate attributeName="opacity" values="1;0.1;1" dur="0.8s" begin="0.27s" repeatCount="indefinite" />
+            <circle cx="80" cy="102" r="3.5" fill="#1030aa">
+                <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0.3s" repeatCount="indefinite" />
+                <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0.3s" repeatCount="indefinite" />
             </circle>
-            <circle cx="94" cy="103" r="3" fill="#2040aa">
-                <animate attributeName="opacity" values="1;0.1;1" dur="0.8s" begin="0.54s" repeatCount="indefinite" />
+            <circle cx="94" cy="102" r="3.5" fill="#1030aa">
+                <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0.6s" repeatCount="indefinite" />
+                <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0.6s" repeatCount="indefinite" />
             </circle>
-            <rect x="26" y="72" width="18" height="10" rx="5" fill="#162040" stroke="#2050aa" strokeWidth="1.5" />
-            <rect x="116" y="72" width="18" height="10" rx="5" fill="#162040" stroke="#2050aa" strokeWidth="1.5" />
-            <text x="80" y="138" textAnchor="middle" fill="#2050aa" fontSize="11" fontFamily="monospace" fontWeight="bold">INICIANDO...</text>
+
+            <circle cx="80" cy="9" r="2.5" fill="#4488ff" opacity="0.7">
+                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="3s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.7;0.1;0.7" dur="3s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="80" cy="9" r="1.8" fill="#aaccff" opacity="0.5">
+                <animateTransform attributeName="transform" type="rotate" from="120 80 80" to="480 80 80" dur="3s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="80" cy="9" r="1.5" fill="#2255cc" opacity="0.6">
+                <animateTransform attributeName="transform" type="rotate" from="240 80 80" to="600 80 80" dur="3s" repeatCount="indefinite" />
+            </circle>
+
+            <rect x="26" y="72" width="18" height="10" rx="5" fill="#0e1e3a" stroke="#1a4088" strokeWidth="1.5">
+                <animate attributeName="y" values="72;71;73;72" dur="0.4s" repeatCount="indefinite" />
+            </rect>
+            <rect x="116" y="72" width="18" height="10" rx="5" fill="#0e1e3a" stroke="#1a4088" strokeWidth="1.5">
+                <animate attributeName="y" values="72;73;71;72" dur="0.4s" repeatCount="indefinite" />
+            </rect>
+
+            <text x="80" y="138" textAnchor="middle" fill="#1a4088" fontSize="10" fontFamily="monospace" fontWeight="bold" letterSpacing="2">INICIANDO</text>
+            <circle cx="118" cy="134" r="2" fill="#4488ff">
+                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="124" cy="134" r="2" fill="#4488ff">
+                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="130" cy="134" r="2" fill="#4488ff">
+                <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+            </circle>
         </svg>
     )
 }
 
 function BotDoneSVG() {
     return (
-        <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg className="bot-done" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <style>{`
+                .bot-done { animation: breathe 3.5s ease-in-out infinite; }
+                @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+                .zzz1 { animation: float-z 3s ease-in-out infinite; }
+                .zzz2 { animation: float-z 3s ease-in-out infinite 0.6s; }
+                .zzz3 { animation: float-z 3s ease-in-out infinite 1.2s; }
+                @keyframes float-z { 0%   { transform: translate(0, 0); opacity: 0.7; } 100% { transform: translate(6px, -14px); opacity: 0; } }
+                .check-glow { animation: pulse-check 2s ease-in-out infinite; }
+                @keyframes pulse-check { 0%, 100% { opacity: 0.12; r: 68; } 50% { opacity: 0.3; r: 72; } }
+            `}</style>
             <defs>
-                <radialGradient id="glow_done" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#1a2e1a" />
-                    <stop offset="100%" stopColor="#0d160d" />
+                <radialGradient id="bg_done" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#0e2614" />
+                    <stop offset="100%" stopColor="#060f08" />
                 </radialGradient>
+                <filter id="glow_green" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
             </defs>
-            <circle cx="80" cy="80" r="72" fill="url(#glow_done)" stroke="#1a3a1a" strokeWidth="1.5" />
-            <circle cx="80" cy="80" r="68" fill="none" stroke="#20cc44" strokeWidth="1" opacity="0.15" />
-            <rect x="44" y="68" width="72" height="52" rx="10" fill="#162216" stroke="#204420" strokeWidth="1.5" />
-            <rect x="52" y="38" width="56" height="38" rx="9" fill="#162216" stroke="#204420" strokeWidth="1.5" />
-            <line x1="80" y1="38" x2="80" y2="26" stroke="#30aa44" strokeWidth="2" strokeLinecap="round" />
-            <circle cx="80" cy="23" r="4" fill="#20882a" stroke="#30aa44" strokeWidth="1" />
-            <path d="M 60 58 Q 66 52 72 58" stroke="#22cc44" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-            <path d="M 88 58 Q 94 52 100 58" stroke="#22cc44" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-            <path d="M 66 70 Q 80 78 94 70" stroke="#22cc44" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-            <rect x="54" y="82" width="52" height="26" rx="5" fill="#0e1a0e" stroke="#1a3a1a" strokeWidth="1" />
-            <path d="M 66 95 L 76 105 L 97 84" stroke="#22cc44" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="26" y="76" width="18" height="10" rx="5" fill="#162216" stroke="#204420" strokeWidth="1.5" transform="rotate(15 35 81)" />
-            <rect x="116" y="76" width="18" height="10" rx="5" fill="#162216" stroke="#204420" strokeWidth="1.5" transform="rotate(-15 125 81)" />
-            <text x="110" y="46" fill="#22cc44" fontSize="9" fontFamily="monospace" opacity="0.7">z</text>
-            <text x="118" y="38" fill="#22cc44" fontSize="11" fontFamily="monospace" opacity="0.5">z</text>
-            <text x="128" y="30" fill="#22cc44" fontSize="13" fontFamily="monospace" opacity="0.3">z</text>
-            <text x="80" y="138" textAnchor="middle" fill="#204420" fontSize="11" fontFamily="monospace" fontWeight="bold">COMPLETADO</text>
+
+            <circle cx="80" cy="80" r="75" fill="url(#bg_done)" stroke="#153520" strokeWidth="1.5" />
+            <circle className="check-glow" cx="80" cy="80" r="68" fill="none" stroke="#22dd44" strokeWidth="1.5" opacity="0.15" />
+            <circle cx="80" cy="80" r="71" fill="none" stroke="#1a8830" strokeWidth="1" strokeDasharray="12 20" opacity="0.3">
+                <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="12s" repeatCount="indefinite" />
+            </circle>
+
+            <rect x="44" y="68" width="72" height="52" rx="10" fill="#0e2018" stroke="#1a5028" strokeWidth="1.5" />
+            <rect x="52" y="38" width="56" height="38" rx="9" fill="#0e2018" stroke="#1a5028" strokeWidth="1.5" />
+
+            <line x1="80" y1="38" x2="80" y2="26" stroke="#22cc44" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="80" cy="23" r="4" fill="#1a8830" stroke="#22cc44" strokeWidth="1" filter="url(#glow_green)">
+                <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite" />
+            </circle>
+
+            <path d="M 60 58 Q 66 52 72 58" stroke="#22cc44" strokeWidth="2.5" fill="none" strokeLinecap="round" filter="url(#glow_green)" />
+            <path d="M 88 58 Q 94 52 100 58" stroke="#22cc44" strokeWidth="2.5" fill="none" strokeLinecap="round" filter="url(#glow_green)" />
+
+            <path d="M 65 70 Q 80 80 95 70" stroke="#22cc44" strokeWidth="2.5" fill="none" strokeLinecap="round" filter="url(#glow_green)" />
+
+            <rect x="54" y="82" width="52" height="26" rx="5" fill="#071208" stroke="#124020" strokeWidth="1" />
+
+            <path d="M 65 95 L 76 105 L 97 83" stroke="#22cc44" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow_green)">
+                <animate attributeName="stroke-dasharray" values="0 60;60 0" dur="0.6s" fill="freeze" />
+            </path>
+
+            <rect x="26" y="76" width="18" height="10" rx="5" fill="#0e2018" stroke="#1a5028" strokeWidth="1.5" transform="rotate(12 35 81)" />
+            <rect x="116" y="76" width="18" height="10" rx="5" fill="#0e2018" stroke="#1a5028" strokeWidth="1.5" transform="rotate(-12 125 81)" />
+
+            <text className="zzz1" x="108" y="48" fill="#22cc44" fontSize="9" fontFamily="monospace" opacity="0.8">z</text>
+            <text className="zzz2" x="116" y="40" fill="#22cc44" fontSize="11" fontFamily="monospace" opacity="0.6">z</text>
+            <text className="zzz3" x="126" y="31" fill="#22cc44" fontSize="13" fontFamily="monospace" opacity="0.4">z</text>
+
+            <text x="80" y="138" textAnchor="middle" fill="#1a5028" fontSize="10" fontFamily="monospace" fontWeight="bold" letterSpacing="2">COMPLETADO</text>
         </svg>
     )
 }
@@ -124,15 +256,44 @@ function BotDoneSVG() {
 function PauseOverlaySVG() {
     return (
         <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <style>{`
+                .pause-bar-l { animation: bar-beat 1.2s ease-in-out infinite; }
+                .pause-bar-r { animation: bar-beat 1.2s ease-in-out infinite 0.15s; }
+                @keyframes bar-beat { 0%, 100% { transform: scaleY(1); opacity: 0.9; } 50% { transform: scaleY(0.7); opacity: 0.5; } }
+                .pause-ring { animation: ring-spin 4s linear infinite; transform-origin: 40px 40px; }
+                @keyframes ring-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            `}</style>
             <defs>
-                <radialGradient id="glow_pause" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#2a2010" />
-                    <stop offset="100%" stopColor="#150e00" />
+                <radialGradient id="bg_pause" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#2a1800" />
+                    <stop offset="100%" stopColor="#120900" />
                 </radialGradient>
+                <filter id="glow_amber" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
             </defs>
-            <circle cx="40" cy="40" r="38" fill="url(#glow_pause)" stroke="#aa6600" strokeWidth="1.5" opacity="0.9" />
-            <circle cx="40" cy="40" r="36" fill="none" stroke="#ffaa00" strokeWidth="1" opacity="0.2" />
-            <rect x="22" y="22" width="12" height="36" rx="4" fill="#ffaa00" opacity="0.9" />
+            <circle cx="40" cy="40" r="38" fill="url(#bg_pause)" stroke="#7a4400" strokeWidth="1.5" />
+            <g className="pause-ring">
+                <circle cx="40" cy="40" r="36" fill="none" stroke="#cc8800" strokeWidth="1.5" strokeDasharray="30 196" strokeLinecap="round" opacity="0.7" />
+            </g>
+            <circle cx="40" cy="4" r="2.5" fill="#ffaa00" opacity="0.8">
+                <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="4s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="40" cy="4" r="1.5" fill="#ff8800" opacity="0.6">
+                <animateTransform attributeName="transform" type="rotate" from="180 40 40" to="540 40 40" dur="4s" repeatCount="indefinite" />
+            </circle>
+
+            <circle cx="40" cy="40" r="30" fill="none" stroke="#ff8800" strokeWidth="0.5" opacity="0.15">
+                <animate attributeName="opacity" values="0.15;0.35;0.15" dur="2s" repeatCount="indefinite" />
+            </circle>
+
+            <g style={{ transformOrigin: '29px 40px' }}>
+                <rect className="pause-bar-l" x="22" y="22" width="12" height="36" rx="4" fill="#ffaa00" filter="url(#glow_amber)" style={{ transformOrigin: '28px 40px' }} />
+            </g>
+            <g style={{ transformOrigin: '52px 40px' }}>
+                <rect className="pause-bar-r" x="46" y="22" width="12" height="36" rx="4" fill="#ffaa00" filter="url(#glow_amber)" style={{ transformOrigin: '52px 40px' }} />
+            </g>
         </svg>
     )
 }

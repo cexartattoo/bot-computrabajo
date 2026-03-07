@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bot States — Animated</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a14;
+    display: flex;
+    gap: 48px;
+    padding: 60px 40px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    color: #aac;
+  }
+
+  /* ─── OFFLINE: flicker estático ─── */
+  .bot-offline {
+    animation: static-flicker 8s infinite;
+  }
+  @keyframes static-flicker {
+    0%, 95%, 100%  { opacity: 1; filter: none; }
+    96%            { opacity: 0.7; filter: brightness(0.6) contrast(1.4); }
+    97%            { opacity: 1;   filter: none; }
+    98%            { opacity: 0.5; filter: brightness(0.4); }
+    99%            { opacity: 1;   filter: none; }
+  }
+
+  /* ─── OFFLINE: ojos pulsan débilmente ─── */
+  .eye-dead {
+    animation: dead-eye 5s ease-in-out infinite;
+  }
+  @keyframes dead-eye {
+    0%, 80%, 100% { opacity: 0.35; }
+    40%           { opacity: 0.7; filter: drop-shadow(0 0 2px #555); }
+  }
+
+  /* ─── LOADING: robot sube/baja levemente ─── */
+  .bot-loading {
+    animation: bob 2s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+
+  /* ─── LOADING: glow exterior ─── */
+  .orbit-glow {
+    animation: orbit-spin 2s linear infinite;
+    transform-origin: 80px 80px;
+  }
+  .orbit-glow-2 {
+    animation: orbit-spin 2s linear infinite reverse;
+    transform-origin: 80px 80px;
+    animation-delay: -0.75s;
+  }
+
+  /* ─── LOADING: scanline interior ─── */
+  .scan-line {
+    animation: scan 2s linear infinite;
+  }
+  @keyframes scan {
+    0%   { transform: translateY(-20px); opacity: 0; }
+    20%  { opacity: 0.6; }
+    80%  { opacity: 0.6; }
+    100% { transform: translateY(20px);  opacity: 0; }
+  }
+
+  /* ─── DONE: robot respira lento ─── */
+  .bot-done {
+    animation: breathe 3.5s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.025); }
+  }
+
+  /* ─── DONE: zzz flotan ─── */
+  .zzz1 { animation: float-z 3s ease-in-out infinite; }
+  .zzz2 { animation: float-z 3s ease-in-out infinite 0.6s; }
+  .zzz3 { animation: float-z 3s ease-in-out infinite 1.2s; }
+  @keyframes float-z {
+    0%   { transform: translate(0, 0); opacity: 0.7; }
+    100% { transform: translate(6px, -14px); opacity: 0; }
+  }
+
+  /* ─── DONE: check glow pulsa ─── */
+  .check-glow {
+    animation: pulse-check 2s ease-in-out infinite;
+  }
+  @keyframes pulse-check {
+    0%, 100% { opacity: 0.12; r: 68; }
+    50%      { opacity: 0.3; r: 72; }
+  }
+
+  /* ─── PAUSA: barras laten ─── */
+  .pause-bar-l { animation: bar-beat 1.2s ease-in-out infinite; }
+  .pause-bar-r { animation: bar-beat 1.2s ease-in-out infinite 0.15s; }
+  @keyframes bar-beat {
+    0%, 100% { transform: scaleY(1); opacity: 0.9; }
+    50%      { transform: scaleY(0.7); opacity: 0.5; }
+  }
+
+  /* ─── PAUSA: anillo orbita ─── */
+  .pause-ring {
+    animation: ring-spin 4s linear infinite;
+    transform-origin: 40px 40px;
+  }
+
+  /* ─── Partículas LOADING ─── */
+  .particle { animation: particle-fly var(--dur) ease-out infinite var(--delay); }
+  @keyframes particle-fly {
+    0%   { transform: translate(0,0) scale(1); opacity: 0.8; }
+    100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+  }
+
+  /* ─── OFFLINE: noiseline horizontal ─── */
+  .noise-line { animation: noise 0.15s steps(1) infinite; }
+  @keyframes noise {
+    0%  { d: path("M44 95 L116 95"); opacity: 0.1; }
+    25% { d: path("M44 93 L116 97"); opacity: 0.2; }
+    50% { d: path("M44 96 L116 94"); opacity: 0.15; }
+    75% { d: path("M44 94 L116 96"); opacity: 0.1; }
+  }
+
+  @keyframes orbit-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     BOT OFFLINE
+════════════════════════════════════════ -->
+<div class="card">
+  <svg class="bot-offline" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bg_off" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#1e1e30"/>
+        <stop offset="100%" stop-color="#0d0d18"/>
+      </radialGradient>
+      <filter id="f_noise">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise"/>
+        <feColorMatrix type="saturate" values="0" in="noise" result="gray"/>
+        <feBlend in="SourceGraphic" in2="gray" mode="overlay" result="blend"/>
+        <feComposite in="blend" in2="SourceGraphic" operator="in"/>
+      </filter>
+    </defs>
+
+    <!-- Fondo con glow apagado -->
+    <circle cx="80" cy="80" r="75" fill="url(#bg_off)" stroke="#22223a" stroke-width="1.5"/>
+    <!-- Halo muerto -->
+    <circle cx="80" cy="80" r="71" fill="none" stroke="#2a2a44" stroke-width="0.5" stroke-dasharray="4 8" opacity="0.4"/>
+
+    <!-- Cuerpo -->
+    <rect x="44" y="68" width="72" height="52" rx="10" fill="#181828" stroke="#2a2a42" stroke-width="1.5"/>
+    <!-- Cabeza -->
+    <rect x="52" y="38" width="56" height="38" rx="9" fill="#181828" stroke="#2a2a42" stroke-width="1.5"/>
+
+    <!-- Antena -->
+    <line x1="80" y1="38" x2="80" y2="26" stroke="#2a2a42" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="80" cy="23" r="4" fill="#1a1a2e" stroke="#2a2a42" stroke-width="1.5"/>
+
+    <!-- Ojos X con glow muerto -->
+    <g class="eye-dead">
+      <line x1="62" y1="52" x2="70" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="70" y1="52" x2="62" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="90" y1="52" x2="98" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="98" y1="52" x2="90" y2="60" stroke="#3a3a5a" stroke-width="2.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Boca plana/triste -->
+    <path d="M 67 73 Q 80 69 93 73" stroke="#2a2a44" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+    <!-- Panel pecho -->
+    <rect x="54" y="82" width="52" height="26" rx="5" fill="#111120" stroke="#202038" stroke-width="1"/>
+
+    <!-- Indicadores muertos con glitch sutil -->
+    <circle cx="66" cy="95" r="5" fill="#0e0e1e" stroke="#222" stroke-width="1"/>
+    <circle cx="80" cy="95" r="5" fill="#0e0e1e" stroke="#222" stroke-width="1"/>
+    <circle cx="94" cy="95" r="5" fill="#0e0e1e" stroke="#222" stroke-width="1"/>
+
+    <!-- Scanline de ruido en pecho -->
+    <rect x="55" y="90" width="50" height="1" fill="#4040ff" opacity="0.06">
+      <animate attributeName="y" values="83;107;83" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0.12;0" dur="3s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- Brazos caídos -->
+    <rect x="26" y="74" width="18" height="10" rx="5" fill="#181828" stroke="#2a2a42" stroke-width="1.5" transform="rotate(20 35 79)"/>
+    <rect x="116" y="74" width="18" height="10" rx="5" fill="#181828" stroke="#2a2a42" stroke-width="1.5" transform="rotate(-20 125 79)"/>
+
+    <!-- Label -->
+    <text x="80" y="138" text-anchor="middle" fill="#2a2a44" font-size="10" font-family="monospace" font-weight="bold" letter-spacing="2">OFFLINE</text>
+    <!-- Cursor parpadeante -->
+    <rect x="103" y="129" width="6" height="8" fill="#2a2a44">
+      <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>
+    </rect>
+  </svg>
+  <span class="label">Offline</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     BOT CARGANDO
+════════════════════════════════════════ -->
+<div class="card">
+  <svg class="bot-loading" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bg_load" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#0e1e40"/>
+        <stop offset="100%" stop-color="#070e1e"/>
+      </radialGradient>
+      <radialGradient id="eye_glow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#60aaff"/>
+        <stop offset="100%" stop-color="#1040cc"/>
+      </radialGradient>
+      <filter id="glow_blue" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- Fondo -->
+    <circle cx="80" cy="80" r="75" fill="url(#bg_load)" stroke="#0f2550" stroke-width="1.5"/>
+
+    <!-- Anillo exterior orbitando — 2 capas -->
+    <g class="orbit-glow">
+      <circle cx="80" cy="80" r="71" fill="none" stroke="#1848cc" stroke-width="2.5"
+              stroke-dasharray="90 354" stroke-linecap="round" opacity="0.7"/>
+    </g>
+    <g class="orbit-glow-2">
+      <circle cx="80" cy="80" r="71" fill="none" stroke="#4488ff" stroke-width="1.5"
+              stroke-dasharray="40 404" stroke-linecap="round" opacity="0.9"/>
+    </g>
+    <!-- Anillo medio -->
+    <circle cx="80" cy="80" r="64" fill="none" stroke="#0a2060" stroke-width="1" stroke-dasharray="6 10" opacity="0.5">
+      <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="-360 80 80" dur="8s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Cuerpo -->
+    <rect x="44" y="68" width="72" height="52" rx="10" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5"/>
+    <!-- Cabeza -->
+    <rect x="52" y="38" width="56" height="38" rx="9" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5"/>
+
+    <!-- Antena -->
+    <line x1="80" y1="38" x2="80" y2="26" stroke="#4488ff" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="80" cy="23" r="4" fill="#1050cc" filter="url(#glow_blue)">
+      <animate attributeName="r" values="4;5.5;4" dur="1s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Ojos: cargando con brillo -->
+    <circle cx="66" cy="56" r="7" fill="url(#eye_glow)" filter="url(#glow_blue)">
+      <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="94" cy="56" r="7" fill="url(#eye_glow)" filter="url(#glow_blue)">
+      <animate attributeName="opacity" values="0.9;0.2;0.9" dur="1.2s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Pupila ojos -->
+    <circle cx="66" cy="56" r="3" fill="#88bbff" opacity="0.6">
+      <animate attributeName="cx" values="64;68;64" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="94" cy="56" r="3" fill="#88bbff" opacity="0.6">
+      <animate attributeName="cx" values="92;96;92" dur="2s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Boca cargando -->
+    <rect x="68" y="70" width="24" height="3" rx="1.5" fill="#1a4088"/>
+    <!-- Animación de "habla" en boca -->
+    <rect x="68" y="70" width="8" height="3" rx="1.5" fill="#4488ff" opacity="0.8">
+      <animate attributeName="width" values="0;24;0" dur="1.6s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- Panel pecho -->
+    <rect x="54" y="82" width="52" height="26" rx="5" fill="#07101e" stroke="#0f2a5a" stroke-width="1"/>
+
+    <!-- Scanline sobre pecho -->
+    <rect x="55" y="83" width="50" height="1.5" fill="#3366ff" opacity="0.4" rx="0.5">
+      <animate attributeName="y" values="83;106;83" dur="1.4s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- Barra de progreso -->
+    <rect x="58" y="90" width="44" height="4" rx="2" fill="#050f1e"/>
+    <rect x="58" y="90" width="2" height="4" rx="2" fill="#4488ff" filter="url(#glow_blue)">
+      <animate attributeName="width" values="2;44;2" dur="2s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- Puntos de estado -->
+    <circle cx="66" cy="102" r="3.5" fill="#1030aa">
+      <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="80" cy="102" r="3.5" fill="#1030aa">
+      <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0.3s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0.3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="94" cy="102" r="3.5" fill="#1030aa">
+      <animate attributeName="fill" values="#1030aa;#4488ff;#1030aa" dur="0.9s" begin="0.6s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="3.5;4.5;3.5" dur="0.9s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Partículas orbitando -->
+    <circle cx="80" cy="9" r="2.5" fill="#4488ff" opacity="0.7">
+      <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.7;0.1;0.7" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="80" cy="9" r="1.8" fill="#aaccff" opacity="0.5">
+      <animateTransform attributeName="transform" type="rotate" from="120 80 80" to="480 80 80" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="80" cy="9" r="1.5" fill="#2255cc" opacity="0.6">
+      <animateTransform attributeName="transform" type="rotate" from="240 80 80" to="600 80 80" dur="3s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Brazos con vibración -->
+    <rect x="26" y="72" width="18" height="10" rx="5" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5">
+      <animate attributeName="y" values="72;71;73;72" dur="0.4s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="116" y="72" width="18" height="10" rx="5" fill="#0e1e3a" stroke="#1a4088" stroke-width="1.5">
+      <animate attributeName="y" values="72;73;71;72" dur="0.4s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- Label animado -->
+    <text x="80" y="138" text-anchor="middle" fill="#1a4088" font-size="10" font-family="monospace" font-weight="bold" letter-spacing="2">INICIANDO</text>
+    <!-- Puntos del label -->
+    <circle cx="118" cy="134" r="2" fill="#4488ff">
+      <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="124" cy="134" r="2" fill="#4488ff">
+      <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="130" cy="134" r="2" fill="#4488ff">
+      <animate attributeName="opacity" values="0;1;0" dur="1.2s" begin="0.8s" repeatCount="indefinite"/>
+    </circle>
+  </svg>
+  <span class="label">Cargando</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     BOT COMPLETADO
+════════════════════════════════════════ -->
+<div class="card">
+  <svg class="bot-done" width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bg_done" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#0e2614"/>
+        <stop offset="100%" stop-color="#060f08"/>
+      </radialGradient>
+      <filter id="glow_green" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- Fondo -->
+    <circle cx="80" cy="80" r="75" fill="url(#bg_done)" stroke="#153520" stroke-width="1.5"/>
+
+    <!-- Anillo de éxito -->
+    <circle class="check-glow" cx="80" cy="80" r="68" fill="none" stroke="#22dd44" stroke-width="1.5" opacity="0.15"/>
+    <!-- Segundo anillo girando lento -->
+    <circle cx="80" cy="80" r="71" fill="none" stroke="#1a8830" stroke-width="1"
+            stroke-dasharray="12 20" opacity="0.3">
+      <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="12s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Cuerpo -->
+    <rect x="44" y="68" width="72" height="52" rx="10" fill="#0e2018" stroke="#1a5028" stroke-width="1.5"/>
+    <!-- Cabeza -->
+    <rect x="52" y="38" width="56" height="38" rx="9" fill="#0e2018" stroke="#1a5028" stroke-width="1.5"/>
+
+    <!-- Antena -->
+    <line x1="80" y1="38" x2="80" y2="26" stroke="#22cc44" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="80" cy="23" r="4" fill="#1a8830" stroke="#22cc44" stroke-width="1" filter="url(#glow_green)">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Ojos satisfechos -->
+    <path d="M 60 58 Q 66 52 72 58" stroke="#22cc44" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow_green)"/>
+    <path d="M 88 58 Q 94 52 100 58" stroke="#22cc44" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow_green)"/>
+
+    <!-- Boca sonriente grande -->
+    <path d="M 65 70 Q 80 80 95 70" stroke="#22cc44" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#glow_green)"/>
+
+    <!-- Panel pecho -->
+    <rect x="54" y="82" width="52" height="26" rx="5" fill="#071208" stroke="#124020" stroke-width="1"/>
+
+    <!-- Check mark con glow -->
+    <path d="M 65 95 L 76 105 L 97 83" stroke="#22cc44" stroke-width="3" fill="none"
+          stroke-linecap="round" stroke-linejoin="round" filter="url(#glow_green)">
+      <animate attributeName="stroke-dasharray" values="0 60;60 0" dur="0.6s" fill="freeze"/>
+    </path>
+
+    <!-- Brazos relajados -->
+    <rect x="26" y="76" width="18" height="10" rx="5" fill="#0e2018" stroke="#1a5028" stroke-width="1.5" transform="rotate(12 35 81)"/>
+    <rect x="116" y="76" width="18" height="10" rx="5" fill="#0e2018" stroke="#1a5028" stroke-width="1.5" transform="rotate(-12 125 81)"/>
+
+    <!-- ZZZ flotando -->
+    <text class="zzz1" x="108" y="48" fill="#22cc44" font-size="9" font-family="monospace" opacity="0.8">z</text>
+    <text class="zzz2" x="116" y="40" fill="#22cc44" font-size="11" font-family="monospace" opacity="0.6">z</text>
+    <text class="zzz3" x="126" y="31" fill="#22cc44" font-size="13" font-family="monospace" opacity="0.4">z</text>
+
+    <!-- Label -->
+    <text x="80" y="138" text-anchor="middle" fill="#1a5028" font-size="10" font-family="monospace" font-weight="bold" letter-spacing="2">COMPLETADO</text>
+  </svg>
+  <span class="label">Completado</span>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     PAUSA
+════════════════════════════════════════ -->
+<div class="card">
+  <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="bg_pause" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#2a1800"/>
+        <stop offset="100%" stop-color="#120900"/>
+      </radialGradient>
+      <filter id="glow_amber" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- Fondo -->
+    <circle cx="40" cy="40" r="38" fill="url(#bg_pause)" stroke="#7a4400" stroke-width="1.5"/>
+
+    <!-- Anillo exterior orbitando -->
+    <g class="pause-ring">
+      <circle cx="40" cy="40" r="36" fill="none" stroke="#cc8800" stroke-width="1.5"
+              stroke-dasharray="30 196" stroke-linecap="round" opacity="0.7"/>
+    </g>
+    <!-- Puntos orbitales -->
+    <circle cx="40" cy="4" r="2.5" fill="#ffaa00" opacity="0.8">
+      <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="40" cy="4" r="1.5" fill="#ff8800" opacity="0.6">
+      <animateTransform attributeName="transform" type="rotate" from="180 40 40" to="540 40 40" dur="4s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Brillo interior -->
+    <circle cx="40" cy="40" r="30" fill="none" stroke="#ff8800" stroke-width="0.5" opacity="0.15">
+      <animate attributeName="opacity" values="0.15;0.35;0.15" dur="2s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Barras de pausa -->
+    <g style="transform-origin: 29px 40px">
+      <rect class="pause-bar-l" x="22" y="22" width="12" height="36" rx="4"
+            fill="#ffaa00" filter="url(#glow_amber)" style="transform-origin: 28px 40px"/>
+    </g>
+    <g>
+      <rect class="pause-bar-r" x="46" y="22" width="12" height="36" rx="4"
+            fill="#ffaa00" filter="url(#glow_amber)" style="transform-origin: 52px 40px"/>
+    </g>
+  </svg>
+  <span class="label">Pausa</span>
+</div>
+
+</body>
+</html>
