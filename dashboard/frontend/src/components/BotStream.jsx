@@ -370,35 +370,43 @@ export default function BotStream() {
         sessionStorage.setItem(SIZE_KEY, JSON.stringify(panelSize))
     }, [panelSize])
 
-    // Preload-based recursive polling for screenshots
+    // Fetch-based recursive polling for screenshots (with size validation)
     useEffect(() => {
-        if (!isRunning) {
-            return
-        }
+        if (!isRunning) return
         let cancelled = false
         let timeoutId = null
+        let prevUrl = null
 
-        const loadNextFrame = () => {
+        const loadNextFrame = async () => {
             if (cancelled) return
-            const img = new Image()
-            img.onload = () => {
+            try {
+                const res = await fetch(`${API}/bot/screen?t=${Date.now()}`)
+                if (!res.ok) throw new Error('Bad status')
+                const blob = await res.blob()
+
                 if (!cancelled) {
-                    setCurrentSrc(img.src)
+                    // Only update if it's a real screenshot (not a 0-byte or tiny error image)
+                    if (blob.size > 5000) {
+                        const objectUrl = URL.createObjectURL(blob)
+                        setCurrentSrc(objectUrl)
+                        if (prevUrl) URL.revokeObjectURL(prevUrl)
+                        prevUrl = objectUrl
+                    }
+                    timeoutId = setTimeout(loadNextFrame, 1000)
+                }
+            } catch (err) {
+                if (!cancelled) {
                     timeoutId = setTimeout(loadNextFrame, 1000)
                 }
             }
-            img.onerror = () => {
-                if (!cancelled) {
-                    timeoutId = setTimeout(loadNextFrame, 1000)
-                }
-            }
-            img.src = `${API}/bot/screen?t=${Date.now()}`
         }
+
         loadNextFrame()
 
         return () => {
             cancelled = true
             if (timeoutId) clearTimeout(timeoutId)
+            if (prevUrl) URL.revokeObjectURL(prevUrl)
         }
     }, [isRunning])
 
